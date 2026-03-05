@@ -8,8 +8,8 @@ import 'utils/cart_controller.dart';
 import 'utils/language_controller.dart';
 import 'screens/home_screen.dart';
 import 'Admin/app/admin_app.dart';
-import 'driver/driver_app.dart';
-import 'driver/services/driver_tracking_service.dart';
+import 'Driver/driver_app.dart';
+import 'Driver/services/driver_tracking_service.dart';
 import 'screens/auth/reset_password_screen.dart';
 
 import 'dart:async';
