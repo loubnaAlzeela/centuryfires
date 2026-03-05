@@ -1,0 +1,79 @@
+import 'package:flutter/material.dart';
+import '../theme/app_colors.dart';
+import '../utils/cart_controller.dart';
+import 'quantity_button.dart';
+import '../utils/l.dart';
+
+class CartItemCard extends StatelessWidget {
+  final CartLine item;
+
+  const CartItemCard({super.key, required this.item});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.card(context),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Row(
+        children: [
+          // Image
+          Container(
+            width: 64,
+            height: 64,
+            decoration: BoxDecoration(
+              color: AppColors.bg(context),
+              borderRadius: BorderRadius.circular(12),
+              image: item.imageUrl != null && item.imageUrl!.isNotEmpty
+                  ? DecorationImage(
+                      image: NetworkImage(item.imageUrl!),
+                      fit: BoxFit.cover,
+                    )
+                  : null,
+            ),
+          ),
+
+          const SizedBox(width: 12),
+
+          // Info
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  item.name,
+                  style: TextStyle(
+                    color: AppColors.text(context),
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                if (item.subtitle != null && item.subtitle!.isNotEmpty)
+                  Text(
+                    item.subtitle!,
+                    style: TextStyle(
+                      color: AppColors.textGrey(context),
+                      fontSize: 12,
+                    ),
+                  ),
+                const SizedBox(height: 6),
+                Text(
+                  '${item.price.toStringAsFixed(2)} ${L.t('cart_item_card_currency')}',
+                  style: TextStyle(
+                    color: AppColors.primary(context),
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          // Quantity
+          QuantityButton(itemId: item.id, quantity: item.quantity),
+        ],
+      ),
+    );
+  }
+}

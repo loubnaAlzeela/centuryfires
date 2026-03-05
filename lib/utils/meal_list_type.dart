@@ -1,0 +1,1 @@
+enum MealListType { recommended, popular }

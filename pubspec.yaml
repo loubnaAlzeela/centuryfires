@@ -1,0 +1,62 @@
+
+name: flutter_application_1
+description: "A new Flutter project."
+publish_to: 'none'
+
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.10.4
+
+dependencies:
+  flutter:
+    sdk: flutter
+ 
+  image_picker: ^1.0.4
+  audioplayers: ^5.2.1
+  fl_chart: ^0.66.0
+  flutter_native_splash: ^2.3.9   
+  flutter_localizations:
+    sdk: flutter
+  intl: ^0.20.0
+  shared_preferences: ^2.2.2
+  supabase_flutter: ^2.5.6
+  cupertino_icons: ^1.0.8
+  url_launcher: ^6.3.0
+  auto_size_text: ^3.0.0
+  geolocator: ^10.1.0
+  flutter_map: ^6.1.0
+  latlong2: ^0.9.0
+  http: ^1.2.0
+  flutter_background_service: ^5.0.5
+  flutter_local_notifications: ^17.0.0
+  flutter_overlay_window: ^0.4.5
+  rename: ^3.1.0
+  app_links: ^6.0.2
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+
+  
+  flutter_lints: ^6.0.0
+  flutter_launcher_icons: ^0.13.1
+
+flutter_native_splash:
+  color: "#0E0E0E"
+  image: assets/images/branding/splash_logo_75.png
+  
+  
+flutter_icons:
+    android: true
+    ios: true
+    image_path: "assets/images/branding/splash_logo_75.png"
+    min_sdk_android: 21
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/images/branding/
+    - assets/images/promo/
+    - assets/images/meals/
+    - assets/sounds/
