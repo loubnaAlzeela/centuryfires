@@ -33,6 +33,8 @@ android/key.properties
 *.keystore
 *.jks
 android/key.properties
+android/app/*.keystore
+android/app/*.jks
 .env
 .env.*
 
