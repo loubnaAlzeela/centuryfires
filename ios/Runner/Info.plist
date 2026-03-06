@@ -28,7 +28,6 @@
 		<string>LaunchScreen</string>
 		<key>UIMainStoryboardFile</key>
 		<string>Main</string>
-		<key>UISupportedInterfaceOrientations</key>
 		<key>NSLocationWhenInUseUsageDescription</key>
 		<string>This app needs location to deliver orders.</string>
 		<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>

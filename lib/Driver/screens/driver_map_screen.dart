@@ -1,11 +1,10 @@
 import 'dart:async';
 import 'dart:convert';
 
-import 'package:http/http.dart' as http;
 import 'package:flutter/material.dart';
-import 'package:flutter_map/flutter_map.dart';
-import 'package:latlong2/latlong.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../theme/app_colors.dart';
@@ -13,7 +12,7 @@ import '../services/driver_tracking_service.dart';
 
 class DriverMapScreen extends StatefulWidget {
   final String orderId;
-  final String driverUserId; // users.id (internal id)
+  final String driverUserId;
   final double customerLat;
   final double customerLng;
 
@@ -32,11 +31,15 @@ class DriverMapScreen extends StatefulWidget {
 class _DriverMapScreenState extends State<DriverMapScreen> {
   final supabase = Supabase.instance.client;
 
+  final Completer<GoogleMapController> _mapCompleter = Completer();
+  GoogleMapController? _mapController;
+
   LatLng? driverLocation;
   StreamSubscription<Position>? _positionStream;
-  final MapController _mapController = MapController();
 
-  List<LatLng> routePoints = [];
+  Set<Polyline> _polylines = {};
+  Set<Marker> _markers = {};
+
   bool _starting = true;
 
   @override
@@ -48,42 +51,84 @@ class _DriverMapScreenState extends State<DriverMapScreen> {
   @override
   void dispose() {
     _positionStream?.cancel();
+    _mapController?.dispose();
     super.dispose();
   }
 
-  Future<void> _startAll() async {
-    debugPrint("🔥 START ALL CALLED");
-    setState(() => _starting = true);
+  // ─────────────────────────────────────────
+  void _showMsg(String msg) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(msg), backgroundColor: AppColors.card(context)),
+    );
+  }
 
-    void showMsg(String msg) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(msg), backgroundColor: AppColors.card(context)),
+  // ─────────────────────────────────────────
+  //  MARKERS helper
+  // ─────────────────────────────────────────
+  void _buildMarkers({LatLng? driver}) {
+    final customer = LatLng(widget.customerLat, widget.customerLng);
+
+    final Set<Marker> markers = {
+      Marker(
+        markerId: const MarkerId('customer'),
+        position: customer,
+        icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed),
+        infoWindow: const InfoWindow(title: 'Customer'),
+      ),
+    };
+
+    if (driver != null) {
+      markers.add(
+        Marker(
+          markerId: const MarkerId('driver'),
+          position: driver,
+          icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueBlue),
+          infoWindow: const InfoWindow(title: 'You'),
+        ),
       );
     }
 
-    // 0) GPS ON؟
+    if (mounted) setState(() => _markers = markers);
+  }
+
+  // ─────────────────────────────────────────
+  //  MOVE CAMERA
+  // ─────────────────────────────────────────
+  Future<void> _moveTo(LatLng pos, {double zoom = 16}) async {
+    _mapController?.animateCamera(
+      CameraUpdate.newCameraPosition(CameraPosition(target: pos, zoom: zoom)),
+    );
+  }
+
+  // ─────────────────────────────────────────
+  //  START ALL
+  // ─────────────────────────────────────────
+  Future<void> _startAll() async {
+    setState(() => _starting = true);
+
+    // GPS on?
     final enabled = await Geolocator.isLocationServiceEnabled();
     if (!enabled) {
-      showMsg('Location is OFF - please enable GPS');
+      _showMsg('Location is OFF - please enable GPS');
       await Geolocator.openLocationSettings();
       if (mounted) setState(() => _starting = false);
       return;
     }
 
-    // 0.5) Permission؟
+    // Permission?
     var perm = await Geolocator.checkPermission();
     if (perm == LocationPermission.denied) {
       perm = await Geolocator.requestPermission();
     }
     if (perm == LocationPermission.denied ||
         perm == LocationPermission.deniedForever) {
-      showMsg('Location permission denied');
+      _showMsg('Location permission denied');
       if (mounted) setState(() => _starting = false);
       return;
     }
 
-    // 1) Update order (مرة واحدة)
+    // Update order status
     try {
       await supabase
           .from('orders')
@@ -97,7 +142,7 @@ class _DriverMapScreenState extends State<DriverMapScreen> {
       debugPrint('orders update error: $e');
     }
 
-    // ✅ 1.5) Create first row فوراً + حط موقع السائق على الخريطة
+    // First position
     try {
       final p = await Geolocator.getCurrentPosition(
         desiredAccuracy: LocationAccuracy.bestForNavigation,
@@ -105,13 +150,10 @@ class _DriverMapScreenState extends State<DriverMapScreen> {
       );
 
       final nowLoc = LatLng(p.latitude, p.longitude);
-
       if (mounted) setState(() => driverLocation = nowLoc);
-      _mapController.move(nowLoc, 16);
-      debugPrint("========== DRIVER DEBUG ==========");
-      debugPrint("widget.driverUserId = ${widget.driverUserId}");
-      debugPrint("auth.uid = ${supabase.auth.currentUser?.id}");
-      debugPrint("==================================");
+
+      _buildMarkers(driver: nowLoc);
+      _moveTo(nowLoc);
 
       await supabase.from('driver_locations').upsert({
         'order_id': widget.orderId,
@@ -120,24 +162,12 @@ class _DriverMapScreenState extends State<DriverMapScreen> {
         'lng': p.longitude,
         'updated_at': DateTime.now().toIso8601String(),
       }, onConflict: 'order_id');
-
-      // ✅ تأكيد سريع: هل انكتب؟
-      final check = await supabase
-          .from('driver_locations')
-          .select('order_id,driver_id,lat,lng,updated_at')
-          .eq('order_id', widget.orderId)
-          .maybeSingle();
-
-      debugPrint('driver_locations check: $check');
-      if (check == null) {
-        showMsg('Row not created (RLS/Insert blocked)');
-      }
     } catch (e) {
       debugPrint('FIRST UPSERT ERROR: $e');
-      showMsg('Tracking start failed: $e');
+      _showMsg('Tracking start failed: $e');
     }
 
-    // 2) Background tracking (اختياري)
+    // Background tracking
     try {
       await DriverTrackingService.start(
         orderId: widget.orderId,
@@ -147,12 +177,13 @@ class _DriverMapScreenState extends State<DriverMapScreen> {
       debugPrint('background start error: $e');
     }
 
-    // 3) UI tracking
+    // UI tracking
     await _startUiTracking();
 
     if (mounted) setState(() => _starting = false);
   }
 
+  // ─────────────────────────────────────────
   Future<void> _startUiTracking() async {
     try {
       final p = await Geolocator.getCurrentPosition(
@@ -160,30 +191,19 @@ class _DriverMapScreenState extends State<DriverMapScreen> {
       );
 
       final nowLoc = LatLng(p.latitude, p.longitude);
+      if (mounted) setState(() => driverLocation = nowLoc);
 
-      if (!mounted) return;
+      _buildMarkers(driver: nowLoc);
+      _moveTo(nowLoc);
 
-      setState(() {
-        driverLocation = nowLoc;
-      });
-
-      _mapController.move(nowLoc, 16);
-
-      // رسم المسار
       final points = await _fetchRoute(
         p.latitude,
         p.longitude,
         widget.customerLat,
         widget.customerLng,
       );
+      _buildPolyline(points);
 
-      if (!mounted) return;
-
-      setState(() {
-        routePoints = points;
-      });
-
-      // الآن نفعّل التتبع الحي
       _positionStream =
           Geolocator.getPositionStream(
             locationSettings: const LocationSettings(
@@ -192,14 +212,19 @@ class _DriverMapScreenState extends State<DriverMapScreen> {
             ),
           ).listen((pos) async {
             final liveLoc = LatLng(pos.latitude, pos.longitude);
+            if (mounted) setState(() => driverLocation = liveLoc);
 
-            if (!mounted) return;
+            _buildMarkers(driver: liveLoc);
+            _moveTo(liveLoc);
 
-            setState(() {
-              driverLocation = liveLoc;
-            });
-
-            _mapController.move(liveLoc, 16);
+            // Upsert موقع السائق في Supabase
+            await supabase.from('driver_locations').upsert({
+              'order_id': widget.orderId,
+              'driver_id': widget.driverUserId,
+              'lat': pos.latitude,
+              'lng': pos.longitude,
+              'updated_at': DateTime.now().toIso8601String(),
+            }, onConflict: 'order_id');
 
             final liveRoute = await _fetchRoute(
               pos.latitude,
@@ -207,18 +232,16 @@ class _DriverMapScreenState extends State<DriverMapScreen> {
               widget.customerLat,
               widget.customerLng,
             );
-
-            if (!mounted) return;
-
-            setState(() {
-              routePoints = liveRoute;
-            });
+            _buildPolyline(liveRoute);
           });
     } catch (e) {
-      debugPrint("UI TRACK ERROR: $e");
+      debugPrint('UI TRACK ERROR: $e');
     }
   }
 
+  // ─────────────────────────────────────────
+  //  ROUTE
+  // ─────────────────────────────────────────
   Future<List<LatLng>> _fetchRoute(
     double startLat,
     double startLng,
@@ -235,102 +258,82 @@ class _DriverMapScreenState extends State<DriverMapScreen> {
           .get(Uri.parse(url))
           .timeout(const Duration(seconds: 10));
 
-      debugPrint("ROUTE STATUS: ${response.statusCode}");
-
       if (response.statusCode != 200) return [];
 
       final data = jsonDecode(response.body);
-
       final routes = data['routes'] as List?;
       if (routes == null || routes.isEmpty) return [];
 
       final coords = routes[0]['geometry']['coordinates'] as List;
-
       return coords
           .map(
             (c) => LatLng((c[1] as num).toDouble(), (c[0] as num).toDouble()),
           )
           .toList();
     } catch (e) {
-      debugPrint("FETCH ROUTE ERROR: $e");
+      debugPrint('FETCH ROUTE ERROR: $e');
       return [];
     }
   }
 
+  void _buildPolyline(List<LatLng> points) {
+    if (!mounted) return;
+    setState(() {
+      _polylines = points.isEmpty
+          ? {}
+          : {
+              Polyline(
+                polylineId: const PolylineId('route'),
+                points: points,
+                width: 5,
+                color: Colors.deepOrange,
+              ),
+            };
+    });
+  }
+
+  // ─────────────────────────────────────────
+  //  STOP
+  // ─────────────────────────────────────────
   Future<void> _stopAll() async {
     try {
       await DriverTrackingService.stop();
     } catch (_) {}
-
     await _positionStream?.cancel();
     _positionStream = null;
   }
 
+  // ─────────────────────────────────────────
+  //  BUILD
+  // ─────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
     final primary = AppColors.primary(context);
-    final bg = AppColors.bg(context);
     final text = AppColors.text(context);
 
+    final initialPosition = CameraPosition(
+      target: LatLng(widget.customerLat, widget.customerLng),
+      zoom: 15,
+    );
+
     return Scaffold(
-      backgroundColor: bg,
       body: Stack(
         children: [
-          FlutterMap(
-            mapController: _mapController,
-            options: MapOptions(
-              initialCenter: LatLng(widget.customerLat, widget.customerLng),
-              initialZoom: 15,
-            ),
-            children: [
-              TileLayer(
-                urlTemplate: "https://a.tile.openstreetmap.org/{z}/{x}/{y}.png",
-                userAgentPackageName: 'com.centuryfries.app',
-              ),
-
-              if (routePoints.isNotEmpty)
-                PolylineLayer(
-                  polylines: [
-                    // الظل تحت
-                    Polyline(
-                      points: routePoints,
-                      strokeWidth: 8,
-                      color: AppColors.text(context).withValues(alpha: 0.25),
-                    ),
-
-                    // الخط الأساسي فوق
-                    Polyline(
-                      points: routePoints,
-                      strokeWidth: 4,
-                      color: Colors.deepOrange,
-                    ),
-                  ],
-                ),
-
-              MarkerLayer(
-                markers: [
-                  Marker(
-                    point: LatLng(widget.customerLat, widget.customerLng),
-                    width: 40,
-                    height: 40,
-                    child: Icon(Icons.location_on, size: 40, color: Colors.red),
-                  ),
-                  if (driverLocation != null)
-                    Marker(
-                      point: driverLocation!,
-                      width: 38,
-                      height: 38,
-                      child: Icon(
-                        Icons.delivery_dining,
-                        size: 36,
-                        color: Colors.blueAccent,
-                      ),
-                    ),
-                ],
-              ),
-            ],
+          GoogleMap(
+            initialCameraPosition: initialPosition,
+            mapType: MapType.normal,
+            myLocationEnabled: false,
+            myLocationButtonEnabled: false,
+            zoomControlsEnabled: false,
+            markers: _markers,
+            polylines: _polylines,
+            onMapCreated: (controller) {
+              _mapCompleter.complete(controller);
+              _mapController = controller;
+            },
           ),
 
+          // Top bar
           SafeArea(
             child: Padding(
               padding: const EdgeInsets.all(16),
@@ -376,7 +379,7 @@ class _DriverMapScreenState extends State<DriverMapScreen> {
                         Icons.stop_circle,
                         color: AppColors.error(context),
                       ),
-                      onPressed: () async => _stopAll(),
+                      onPressed: _stopAll,
                     ),
                   ),
                 ],

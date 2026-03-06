@@ -1,11 +1,12 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
-import 'package:flutter_map/flutter_map.dart';
-import 'package:latlong2/latlong.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:http/http.dart' as http;
+
 import '../../theme/app_colors.dart';
 import '../../utils/l.dart';
-import 'dart:convert';
-import 'package:http/http.dart' as http;
 
 class MapPickerScreen extends StatefulWidget {
   const MapPickerScreen({super.key});
@@ -16,7 +17,7 @@ class MapPickerScreen extends StatefulWidget {
 
 class _MapPickerScreenState extends State<MapPickerScreen> {
   LatLng? _center;
-  final MapController _mapController = MapController();
+  GoogleMapController? _mapController;
 
   @override
   void initState() {
@@ -24,44 +25,60 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
     _initLocation();
   }
 
+  @override
+  void dispose() {
+    _mapController?.dispose();
+    super.dispose();
+  }
+
   Future<void> _initLocation() async {
-    bool serviceEnabled;
-    LocationPermission permission;
+    final serviceEnabled = await Geolocator.isLocationServiceEnabled();
+    if (!serviceEnabled) return;
 
-    // هل GPS مفعّل
-    serviceEnabled = await Geolocator.isLocationServiceEnabled();
-    if (!serviceEnabled) {
-      return;
-    }
-
-    // تحقق من الصلاحية
-    permission = await Geolocator.checkPermission();
-
+    var permission = await Geolocator.checkPermission();
     if (permission == LocationPermission.denied) {
       permission = await Geolocator.requestPermission();
     }
+    if (permission == LocationPermission.deniedForever) return;
 
-    if (permission == LocationPermission.deniedForever) {
-      return;
-    }
-
-    Position pos = await Geolocator.getCurrentPosition(
+    final pos = await Geolocator.getCurrentPosition(
       desiredAccuracy: LocationAccuracy.high,
     );
 
-    final current = LatLng(pos.latitude, pos.longitude);
-
     if (!mounted) return;
+    setState(() => _center = LatLng(pos.latitude, pos.longitude));
+  }
 
-    setState(() {
-      _center = current;
-    });
+  Future<Map<String, dynamic>?> _reverseGeocode(LatLng location) async {
+    try {
+      final url =
+          'https://nominatim.openstreetmap.org/reverse'
+          '?format=json'
+          '&lat=${location.latitude}'
+          '&lon=${location.longitude}';
+
+      final response = await http.get(
+        Uri.parse(url),
+        headers: {'User-Agent': 'centuryfries_app'},
+      );
+
+      if (response.statusCode != 200) return null;
+      final data = jsonDecode(response.body);
+      return data['address'];
+    } catch (e) {
+      debugPrint('_reverseGeocode error: $e');
+      return null;
+    }
   }
 
   @override
   Widget build(BuildContext context) {
+    final primary = AppColors.primary(context);
+
     if (_center == null) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+      return Scaffold(
+        body: Center(child: CircularProgressIndicator(color: primary)),
+      );
     }
 
     return Scaffold(
@@ -69,77 +86,65 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
       appBar: AppBar(
         title: Text(
           L.t('select_location'),
-          style: TextStyle(color: Colors.black),
+          style: const TextStyle(color: Colors.black),
         ),
-        backgroundColor: AppColors.primary(context),
+        backgroundColor: primary,
         iconTheme: const IconThemeData(color: Colors.black),
       ),
       body: Stack(
         children: [
-          FlutterMap(
-            mapController: _mapController,
-            options: MapOptions(
-              initialCenter: _center!,
-              initialZoom: 16,
-              onPositionChanged: (position, _) {
-                _center = position.center;
-              },
-            ),
-            children: [
-              TileLayer(
-                urlTemplate:
-                    'https://api.maptiler.com/maps/streets/{z}/{x}/{y}.png?key=1j7K6ihnUiwsRHOf7LLA',
-                userAgentPackageName: 'com.centuryfries.app',
-              ),
+          // ── MAP ──────────────────────────────────
+          GoogleMap(
+            initialCameraPosition: CameraPosition(target: _center!, zoom: 16),
+            mapType: MapType.normal,
+            myLocationEnabled: true,
+            myLocationButtonEnabled: true,
+            zoomControlsEnabled: false,
+            onMapCreated: (controller) => _mapController = controller,
 
-              RichAttributionWidget(
-                attributions: [
-                  TextSourceAttribution('© OpenStreetMap contributors'),
-                ],
-              ),
-            ],
+            // يتتبع مركز الخريطة وهي تتحرك
+            onCameraMove: (position) => _center = position.target,
           ),
 
+          // ── PIN ثابت في المنتصف ──────────────────
           const Center(
-            child: Icon(Icons.location_on, size: 40, color: Colors.red),
+            child: Icon(Icons.location_on, size: 44, color: Colors.red),
           ),
 
+          // ── CONFIRM BUTTON ───────────────────────
           Positioned(
-            bottom: 20,
+            bottom: 24,
             left: 20,
             right: 20,
             child: ElevatedButton(
               onPressed: () async {
+                if (_center == null) return;
                 final addressData = await _reverseGeocode(_center!);
-
+                if (!mounted) return;
                 Navigator.pop(context, {
                   'location': _center,
                   'address': addressData,
                 });
               },
-              child: Text(L.t('confirm_location')),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: primary,
+                foregroundColor: AppColors.textOnPrimary(context),
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                ),
+              ),
+              child: Text(
+                L.t('confirm_location'),
+                style: const TextStyle(
+                  fontWeight: FontWeight.w900,
+                  fontSize: 15,
+                ),
+              ),
             ),
           ),
         ],
       ),
     );
-  }
-
-  Future<Map<String, dynamic>?> _reverseGeocode(LatLng location) async {
-    final url =
-        'https://nominatim.openstreetmap.org/reverse'
-        '?format=json'
-        '&lat=${location.latitude}'
-        '&lon=${location.longitude}';
-
-    final response = await http.get(
-      Uri.parse(url),
-      headers: {'User-Agent': 'your_app_name'},
-    );
-
-    if (response.statusCode != 200) return null;
-
-    final data = jsonDecode(response.body);
-    return data['address'];
   }
 }

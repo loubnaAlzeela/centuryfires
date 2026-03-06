@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart'; // ← تغيّر من latlong2
+
 import '../../theme/app_colors.dart';
 import '../../services/address_service.dart';
 import '../../utils/l.dart';
-import 'package:latlong2/latlong.dart';
 import 'map_picker_screen.dart';
 
 class SavedAddressesScreen extends StatefulWidget {
@@ -22,7 +23,8 @@ class _SavedAddressesScreenState extends State<SavedAddressesScreen> {
   final building = TextEditingController();
   final apartment = TextEditingController();
   final notes = TextEditingController();
-  LatLng? _selectedLocation;
+
+  LatLng? _selectedLocation; // ← الآن من google_maps_flutter
 
   List<Map<String, dynamic>> _addresses = [];
   Map<String, dynamic>? _address;
@@ -57,7 +59,6 @@ class _SavedAddressesScreenState extends State<SavedAddressesScreen> {
       if (mounted) {
         setState(() {
           _addresses = data;
-
           if (data.isNotEmpty) {
             final sameAddress = data.firstWhere(
               (a) => a['id'] == currentId,
@@ -78,9 +79,7 @@ class _SavedAddressesScreenState extends State<SavedAddressesScreen> {
         _showError(L.t('err_load_addresses'));
       }
     } finally {
-      if (mounted) {
-        setState(() => _loading = false);
-      }
+      if (mounted) setState(() => _loading = false);
     }
   }
 
@@ -96,10 +95,20 @@ class _SavedAddressesScreenState extends State<SavedAddressesScreen> {
     notes.text = address['notes'] ?? '';
 
     _setAsDefault = address['is_default'] == true;
+
+    // استرجع الموقع المحفوظ لو موجود
+    final lat = (address['lat'] as num?)?.toDouble();
+    final lng = (address['lng'] as num?)?.toDouble();
+    if (lat != null && lng != null) {
+      _selectedLocation = LatLng(lat, lng);
+    } else {
+      _selectedLocation = null;
+    }
   }
 
   void _clearForm() {
     _address = null;
+    _selectedLocation = null;
     title.clear();
     city.clear();
     area.clear();
@@ -131,6 +140,7 @@ class _SavedAddressesScreenState extends State<SavedAddressesScreen> {
                 key: _formKey,
                 child: Column(
                   children: [
+                    // ── ADDRESS TABS ──────────────────────
                     if (_addresses.isNotEmpty) ...[
                       SizedBox(
                         height: 56,
@@ -144,9 +154,7 @@ class _SavedAddressesScreenState extends State<SavedAddressesScreen> {
                             final selected = _address?['id'] == a['id'];
 
                             return GestureDetector(
-                              onTap: () {
-                                setState(() => _selectAddress(a));
-                              },
+                              onTap: () => setState(() => _selectAddress(a)),
                               child: Container(
                                 padding: const EdgeInsets.symmetric(
                                   horizontal: 40,
@@ -225,22 +233,21 @@ class _SavedAddressesScreenState extends State<SavedAddressesScreen> {
                       value: _setAsDefault,
                       activeColor: AppColors.primary(context),
                       title: Text(L.t('set_default_address')),
-                      onChanged: (bool? v) {
-                        setState(() {
-                          _setAsDefault = v ?? false;
-                        });
-                      },
+                      onChanged: (v) =>
+                          setState(() => _setAsDefault = v ?? false),
                     ),
+
                     const SizedBox(height: 12),
 
+                    // ── MAP PICKER ────────────────────────
                     SizedBox(
                       width: double.infinity,
                       child: OutlinedButton.icon(
                         icon: const Icon(Icons.map),
                         label: Text(
                           _selectedLocation == null
-                              ? "Select Location From Map"
-                              : "Location Selected ✓",
+                              ? L.t('select_location')
+                              : '${L.t('location_selected')} ✓',
                         ),
                         onPressed: () async {
                           final result = await Navigator.push(
@@ -252,10 +259,9 @@ class _SavedAddressesScreenState extends State<SavedAddressesScreen> {
 
                           if (result != null) {
                             setState(() {
-                              _selectedLocation = result['location'];
+                              _selectedLocation = result['location'] as LatLng?;
 
                               final addr = result['address'];
-
                               if (addr != null) {
                                 street.text = addr['road'] ?? '';
                                 area.text = addr['suburb'] ?? '';
@@ -268,6 +274,8 @@ class _SavedAddressesScreenState extends State<SavedAddressesScreen> {
                     ),
 
                     const SizedBox(height: 12),
+
+                    // ── SAVE ──────────────────────────────
                     SizedBox(
                       width: double.infinity,
                       child: ElevatedButton(
@@ -290,6 +298,7 @@ class _SavedAddressesScreenState extends State<SavedAddressesScreen> {
                       ),
                     ),
 
+                    // ── DELETE ────────────────────────────
                     if (_address != null && _address!['id'] != null) ...[
                       const SizedBox(height: 12),
                       SizedBox(
@@ -318,6 +327,7 @@ class _SavedAddressesScreenState extends State<SavedAddressesScreen> {
     );
   }
 
+  // ─────────────────────────────────────────
   Widget _section(
     BuildContext context, {
     required String title,
@@ -362,12 +372,8 @@ class _SavedAddressesScreenState extends State<SavedAddressesScreen> {
         validator: required
             ? (v) {
                 final value = v?.trim() ?? '';
-                if (value.isEmpty) {
-                  return L.t('required');
-                }
-                if (value.length > 200) {
-                  return L.t('text_too_long');
-                }
+                if (value.isEmpty) return L.t('required');
+                if (value.length > 200) return L.t('text_too_long');
                 return null;
               }
             : null,
@@ -375,12 +381,13 @@ class _SavedAddressesScreenState extends State<SavedAddressesScreen> {
     );
   }
 
+  // ─────────────────────────────────────────
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
     if (_saving) return;
 
     if (_selectedLocation == null) {
-      _showError("Please select location from map");
+      _showError(L.t('select_location'));
       return;
     }
 
@@ -405,21 +412,15 @@ class _SavedAddressesScreenState extends State<SavedAddressesScreen> {
       if (_address == null) {
         await service.addAddress(data);
       } else {
-        final id = _address!['id'];
-        await service.updateAddress(id, data);
+        await service.updateAddress(_address!['id'], data);
       }
 
       await _loadAddresses();
-
-      if (mounted) {
-        Navigator.pop(context);
-      }
+      if (mounted) Navigator.pop(context);
     } catch (e) {
       _showError(e.toString());
     } finally {
-      if (mounted) {
-        setState(() => _saving = false);
-      }
+      if (mounted) setState(() => _saving = false);
     }
   }
 

@@ -1,8 +1,8 @@
 import 'dart:async';
 import 'dart:convert';
+
 import 'package:flutter/material.dart';
-import 'package:flutter_map/flutter_map.dart';
-import 'package:latlong2/latlong.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -22,29 +22,38 @@ class OrderTrackingScreen extends StatefulWidget {
 
 class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
   final supabase = Supabase.instance.client;
-  final MapController _mapController = MapController();
-  final OrderViewService _service = OrderViewService();
+  final _service = OrderViewService();
+
+  final Completer<GoogleMapController> _mapCompleter = Completer();
+  GoogleMapController? _mapController;
 
   LatLng? driverLocation;
   late LatLng customerLocation;
 
-  List<LatLng> routePoints = [];
-  RealtimeChannel? channel;
+  Set<Marker> _markers = {};
+  Set<Polyline> _polylines = {};
 
+  RealtimeChannel? channel;
   bool loadingDetails = true;
   OrderViewModel? fullOrder;
 
   @override
   void initState() {
     super.initState();
-
     customerLocation = LatLng(widget.order.lat ?? 0, widget.order.lng ?? 0);
-
     _loadDetails();
     _listenDriverLocation();
     _loadInitialDriverLocation();
   }
 
+  @override
+  void dispose() {
+    channel?.unsubscribe();
+    _mapController?.dispose();
+    super.dispose();
+  }
+
+  // ─────────────────────────────────────────
   Future<void> _loadDetails() async {
     setState(() => loadingDetails = true);
     final res = await _service.getOrderById(widget.order.id);
@@ -55,12 +64,9 @@ class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
     });
   }
 
-  @override
-  void dispose() {
-    channel?.unsubscribe();
-    super.dispose();
-  }
-
+  // ─────────────────────────────────────────
+  //  Realtime
+  // ─────────────────────────────────────────
   void _listenDriverLocation() {
     channel = supabase.channel('driver_tracking_${widget.order.id}')
       ..onPostgresChanges(
@@ -73,30 +79,30 @@ class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
           value: widget.order.id,
         ),
         callback: (payload) async {
-          //          print('TRACK EVENT: ${payload.eventType} => ${payload.newRecord}');
-          print('REALTIME PAYLOAD: ${payload.newRecord}');
           final data = payload.newRecord;
-
           final latRaw = data['lat'];
           final lngRaw = data['lng'];
-
           if (latRaw == null || lngRaw == null) return;
 
-          final lat = (latRaw as num).toDouble();
-          final lng = (lngRaw as num).toDouble();
-
-          final newDriverLocation = LatLng(lat, lng);
+          final loc = LatLng(
+            (latRaw as num).toDouble(),
+            (lngRaw as num).toDouble(),
+          );
 
           if (!mounted) return;
-          setState(() => driverLocation = newDriverLocation);
+          setState(() => driverLocation = loc);
 
-          _mapController.move(newDriverLocation, 16);
-          await _fetchRoute(newDriverLocation, customerLocation);
+          _mapController?.animateCamera(CameraUpdate.newLatLng(loc));
+
+          await _fetchRoute(loc, customerLocation);
         },
       )
       ..subscribe();
   }
 
+  // ─────────────────────────────────────────
+  //  Initial driver location
+  // ─────────────────────────────────────────
   Future<void> _loadInitialDriverLocation() async {
     final res = await supabase
         .from('driver_locations')
@@ -108,126 +114,162 @@ class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
 
     final latRaw = res['lat'];
     final lngRaw = res['lng'];
-
     if (latRaw == null || lngRaw == null) return;
 
     final loc = LatLng((latRaw as num).toDouble(), (lngRaw as num).toDouble());
 
     if (!mounted) return;
-
     setState(() => driverLocation = loc);
 
-    _mapController.move(loc, 16);
+    _mapController?.animateCamera(
+      CameraUpdate.newCameraPosition(CameraPosition(target: loc, zoom: 16)),
+    );
+
     await _fetchRoute(loc, customerLocation);
   }
 
+  // ─────────────────────────────────────────
+  //  Route
+  // ─────────────────────────────────────────
   Future<void> _fetchRoute(LatLng start, LatLng end) async {
-    final url =
-        'https://router.project-osrm.org/route/v1/driving/'
-        '${start.longitude},${start.latitude};'
-        '${end.longitude},${end.latitude}'
-        '?overview=full&geometries=geojson';
+    try {
+      final url =
+          'https://router.project-osrm.org/route/v1/driving/'
+          '${start.longitude},${start.latitude};'
+          '${end.longitude},${end.latitude}'
+          '?overview=full&geometries=geojson';
 
-    final response = await http.get(Uri.parse(url));
-    if (response.statusCode != 200) return;
+      final response = await http
+          .get(Uri.parse(url))
+          .timeout(const Duration(seconds: 10));
 
-    final data = jsonDecode(response.body);
-    final coords = data['routes'][0]['geometry']['coordinates'] as List;
+      if (response.statusCode != 200) return;
 
-    if (!mounted) return;
+      final data = jsonDecode(response.body);
+      final routes = data['routes'] as List?;
+      if (routes == null || routes.isEmpty) return;
+
+      final coords = routes[0]['geometry']['coordinates'] as List;
+      final points = coords
+          .map(
+            (c) => LatLng((c[1] as num).toDouble(), (c[0] as num).toDouble()),
+          )
+          .toList();
+
+      if (!mounted) return;
+      _buildMarkersAndPolyline(points);
+    } catch (e) {
+      debugPrint('_fetchRoute error: $e');
+    }
+  }
+
+  // ─────────────────────────────────────────
+  //  Markers + Polyline
+  // ─────────────────────────────────────────
+  void _buildMarkersAndPolyline(List<LatLng> routePoints) {
+    final Set<Marker> markers = {
+      Marker(
+        markerId: const MarkerId('customer'),
+        position: customerLocation,
+        icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed),
+        infoWindow: const InfoWindow(title: 'Your location'),
+      ),
+    };
+
+    if (driverLocation != null) {
+      markers.add(
+        Marker(
+          markerId: const MarkerId('driver'),
+          position: driverLocation!,
+          icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueBlue),
+          infoWindow: const InfoWindow(title: 'Driver'),
+        ),
+      );
+    }
+
     setState(() {
-      routePoints = coords.map((c) => LatLng(c[1], c[0])).toList();
+      _markers = markers;
+      _polylines = routePoints.isEmpty
+          ? {}
+          : {
+              // ظل
+              Polyline(
+                polylineId: const PolylineId('route_shadow'),
+                points: routePoints,
+                width: 8,
+                color: Colors.black.withValues(alpha: 0.15),
+              ),
+              // الخط الأساسي
+              Polyline(
+                polylineId: const PolylineId('route'),
+                points: routePoints,
+                width: 4,
+                color: Colors.deepOrange,
+              ),
+            };
     });
   }
 
+  // ─────────────────────────────────────────
+  //  BUILD
+  // ─────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
     final primary = AppColors.primary(context);
     final text = AppColors.text(context);
     final card = AppColors.card(context);
     final hint = AppColors.textHint(context);
-
     final o = fullOrder ?? widget.order;
-    // final items = o.orderItems;
 
     return Scaffold(
       backgroundColor: AppColors.bg(context),
       body: Column(
         children: [
-          // ================= MAP =================
+          // ── MAP ──────────────────────────────────
           Expanded(
             flex: 6,
-            child: FlutterMap(
-              mapController: _mapController,
-              options: MapOptions(
-                initialCenter: customerLocation,
-                initialZoom: 15,
-                maxZoom: 19,
-                minZoom: 5,
+            child: GoogleMap(
+              initialCameraPosition: CameraPosition(
+                target: customerLocation,
+                zoom: 15,
               ),
-              children: [
-                // 🗺️ MapTiler (الحل النهائي)
-                TileLayer(
-                  urlTemplate:
-                      'https://api.maptiler.com/maps/streets/{z}/{x}/{y}.png?key=1j7K6ihnUiwsRHOf7LLA',
-                  userAgentPackageName: 'com.centuryfries.app',
-                ),
+              mapType: MapType.normal,
+              myLocationEnabled: false,
+              myLocationButtonEnabled: false,
+              zoomControlsEnabled: false,
+              markers: _markers,
+              polylines: _polylines,
+              onMapCreated: (controller) {
+                _mapCompleter.complete(controller);
+                _mapController = controller;
 
-                // 🛣️ Route Line
-                if (routePoints.isNotEmpty)
-                  PolylineLayer(
-                    polylines: [
-                      Polyline(
-                        points: routePoints,
-                        strokeWidth: 8,
-                        color: AppColors.text(context).withValues(alpha: 0.25),
-                      ),
-                      Polyline(
-                        points: routePoints,
-                        strokeWidth: 4,
-                        color: Colors.deepOrange,
-                      ),
-                    ],
-                  ),
-
-                // 📍 Markers
-                MarkerLayer(
-                  markers: [
-                    Marker(
-                      point: customerLocation,
-                      width: 40,
-                      height: 40,
-                      child: const Icon(
-                        Icons.home,
-                        color: Colors.red,
-                        size: 38,
-                      ),
+                // بعد ما تتهيأ الخريطة، حرّك للسائق لو موجود
+                if (driverLocation != null) {
+                  controller.animateCamera(
+                    CameraUpdate.newCameraPosition(
+                      CameraPosition(target: driverLocation!, zoom: 16),
                     ),
-                    if (driverLocation != null)
-                      Marker(
-                        point: driverLocation!,
-                        width: 40,
-                        height: 40,
-                        child: const Icon(
-                          Icons.delivery_dining,
-                          color: Colors.blueAccent,
-                          size: 38,
-                        ),
-                      ),
-                  ],
-                ),
+                  );
+                }
 
-                // 📜 Attribution (مطلوب)
-                RichAttributionWidget(
-                  attributions: [
-                    TextSourceAttribution('© OpenStreetMap contributors'),
-                  ],
-                ),
-              ],
+                // ارسم الـ customer marker فوراً
+                setState(() {
+                  _markers = {
+                    Marker(
+                      markerId: const MarkerId('customer'),
+                      position: customerLocation,
+                      icon: BitmapDescriptor.defaultMarkerWithHue(
+                        BitmapDescriptor.hueRed,
+                      ),
+                      infoWindow: const InfoWindow(title: 'Your location'),
+                    ),
+                  };
+                });
+              },
             ),
           ),
 
-          // ================= DETAILS PANEL =================
+          // ── DETAILS PANEL ─────────────────────────
           Expanded(
             flex: 4,
             child: Container(
@@ -281,7 +323,7 @@ class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
 
                     const SizedBox(height: 18),
 
-                    // ================= ITEMS =================
+                    // ── ITEMS ─────────────────────────────
                     if (o.orderItems.isNotEmpty) ...[
                       Text(
                         L.t('items'),
@@ -348,7 +390,7 @@ class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
                         ),
                         child: Text(
                           L.t('close'),
-                          style: TextStyle(color: Colors.black),
+                          style: const TextStyle(color: Colors.black),
                         ),
                       ),
                     ),
@@ -362,6 +404,7 @@ class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
     );
   }
 
+  // ─────────────────────────────────────────
   Widget _priceRow(
     BuildContext context,
     String label,

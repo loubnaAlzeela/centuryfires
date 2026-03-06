@@ -1,14 +1,15 @@
 import 'dart:async';
 import 'dart:convert';
-import 'package:http/http.dart' as http;
+
 import 'package:flutter/material.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:geolocator/geolocator.dart';
-import 'package:flutter_map/flutter_map.dart';
-import 'package:latlong2/latlong.dart';
-import 'driver_order_details_screen.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:http/http.dart' as http;
+import 'package:supabase_flutter/supabase_flutter.dart';
+
 import '../../theme/app_colors.dart';
 import '../../utils/l.dart';
+import 'driver_order_details_screen.dart';
 
 class DriverHomeScreen extends StatefulWidget {
   const DriverHomeScreen({super.key});
@@ -20,29 +21,32 @@ class DriverHomeScreen extends StatefulWidget {
 class _DriverHomeScreenState extends State<DriverHomeScreen> {
   final supabase = Supabase.instance.client;
 
-  bool isOnline = false;
+  // ── Google Maps ──────────────────────────
+  final Completer<GoogleMapController> _mapCompleter = Completer();
+  GoogleMapController? _mapController;
+  Set<Marker> _markers = {};
+  Set<Polyline> _polylines = {};
 
-  // tracking
-  StreamSubscription<Position>? _positionStream;
-  RealtimeChannel? _locationChannel;
-  final MapController _mapController = MapController();
+  // ── State ────────────────────────────────
+  bool isOnline = false;
+  bool hasActiveOrder = false;
+  bool _loading = true;
+
   String driverName = '';
   String vehicleType = '';
-
   int todayOrders = 0;
   double rating = 0;
   double earnings = 0;
-  RealtimeChannel? _ordersChannel;
-  List<LatLng> routePoints = [];
 
   double? activeClientLat;
   double? activeClientLng;
-  bool hasActiveOrder = false;
 
   List<Map<String, dynamic>> newOrders = [];
-
   Position? currentPosition;
-  bool _loading = true;
+
+  StreamSubscription<Position>? _positionStream;
+  RealtimeChannel? _ordersChannel;
+  RealtimeChannel? _locationChannel;
 
   @override
   void initState() {
@@ -57,14 +61,91 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
     _stopTracking();
     _ordersChannel?.unsubscribe();
     _locationChannel?.unsubscribe();
+    _mapController?.dispose();
     super.dispose();
   }
 
-  // ================= REALTIME: LISTEN DRIVER LOCATION =================
-  void _listenToDriverLocation() {
-    // يمنع تكرار نفس القناة لو انعمل hot-reload
-    _locationChannel?.unsubscribe();
+  // ─────────────────────────────────────────
+  //  INIT
+  // ─────────────────────────────────────────
+  Future<void> _init() async {
+    setState(() => _loading = true);
+    await _getCurrentLocation();
+    await _loadDriverData();
+    if (mounted) setState(() => _loading = false);
+  }
 
+  // ─────────────────────────────────────────
+  //  CAMERA
+  // ─────────────────────────────────────────
+  void _moveTo(LatLng pos, {double zoom = 15}) {
+    _mapController?.animateCamera(
+      CameraUpdate.newCameraPosition(CameraPosition(target: pos, zoom: zoom)),
+    );
+  }
+
+  // ─────────────────────────────────────────
+  //  MARKERS
+  // ─────────────────────────────────────────
+  void _buildMarkers() {
+    final Set<Marker> markers = {};
+
+    if (currentPosition != null) {
+      markers.add(
+        Marker(
+          markerId: const MarkerId('driver'),
+          position: LatLng(
+            currentPosition!.latitude,
+            currentPosition!.longitude,
+          ),
+          icon: BitmapDescriptor.defaultMarkerWithHue(
+            BitmapDescriptor.hueAzure,
+          ),
+          infoWindow: InfoWindow(
+            title: driverName.isEmpty ? 'Driver' : driverName,
+          ),
+        ),
+      );
+    }
+
+    if (activeClientLat != null && activeClientLng != null) {
+      markers.add(
+        Marker(
+          markerId: const MarkerId('client'),
+          position: LatLng(activeClientLat!, activeClientLng!),
+          icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed),
+          infoWindow: const InfoWindow(title: 'Customer'),
+        ),
+      );
+    }
+
+    if (mounted) setState(() => _markers = markers);
+  }
+
+  // ─────────────────────────────────────────
+  //  POLYLINE
+  // ─────────────────────────────────────────
+  void _buildPolyline(List<LatLng> points) {
+    if (!mounted) return;
+    setState(() {
+      _polylines = points.isEmpty
+          ? {}
+          : {
+              Polyline(
+                polylineId: const PolylineId('route'),
+                points: points,
+                width: 4,
+                color: AppColors.primary(context),
+              ),
+            };
+    });
+  }
+
+  // ─────────────────────────────────────────
+  //  REALTIME DRIVER LOCATION (self update)
+  // ─────────────────────────────────────────
+  void _listenToDriverLocation() {
+    _locationChannel?.unsubscribe();
     _locationChannel = supabase
         .channel('driver-location')
         .onPostgresChanges(
@@ -72,18 +153,9 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
           schema: 'public',
           table: 'driver_locations',
           callback: (payload) {
-            final latRaw = payload.newRecord['lat'];
-            final lngRaw = payload.newRecord['lng'];
-
-            final double? lat = latRaw == null
-                ? null
-                : (latRaw as num).toDouble();
-            final double? lng = lngRaw == null
-                ? null
-                : (lngRaw as num).toDouble();
-
+            final double? lat = (payload.newRecord['lat'] as num?)?.toDouble();
+            final double? lng = (payload.newRecord['lng'] as num?)?.toDouble();
             if (lat == null || lng == null) return;
-
             if (!mounted) return;
             setState(() {
               currentPosition = Position(
@@ -99,111 +171,44 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
                 headingAccuracy: 0,
               );
             });
+            _buildMarkers();
           },
         )
         .subscribe();
   }
 
-  Future<void> _init() async {
-    setState(() => _loading = true);
-
-    await _getCurrentLocation();
-    await _loadDriverData();
-
-    if (!mounted) return;
-    setState(() => _loading = false);
-  }
-
-  double _calculateDistanceKm(double lat, double lng) {
-    if (currentPosition == null) return 0;
-
-    final meters = Geolocator.distanceBetween(
-      currentPosition!.latitude,
-      currentPosition!.longitude,
-      lat,
-      lng,
-    );
-
-    return meters / 1000.0;
-  }
-
-  Future<List<LatLng>> _fetchRoute(
-    double startLat,
-    double startLng,
-    double endLat,
-    double endLng,
-  ) async {
-    final url =
-        'https://router.project-osrm.org/route/v1/driving/'
-        '$startLng,$startLat;$endLng,$endLat'
-        '?overview=full&geometries=geojson';
-
-    final response = await http.get(Uri.parse(url));
-
-    if (response.statusCode != 200) return [];
-
-    final data = jsonDecode(response.body);
-
-    final coords = data['routes'][0]['geometry']['coordinates'] as List;
-
-    return coords
-        .map((c) => LatLng((c[1] as num).toDouble(), (c[0] as num).toDouble()))
-        .toList();
-  }
-
-  String _vehicleLabel(String raw) {
-    final v = raw.toLowerCase().trim();
-    if (v == 'motorcycle' || v == 'bike') return L.t('vehicle_motorcycle');
-    if (v == 'car') return L.t('vehicle_car');
-    if (v == 'bicycle') return L.t('vehicle_bicycle');
-    return raw.isEmpty ? '' : raw;
-  }
-
-  String _timeAgoText(String createdAt) {
-    try {
-      final created = DateTime.parse(createdAt);
-      final mins = DateTime.now().difference(created).inMinutes;
-      if (mins <= 0) return '1 ${L.t('min_ago')}';
-      return '$mins ${L.t('min_ago')}';
-    } catch (_) {
-      return '';
-    }
-  }
-
-  //=========== Realtime orders ==============
+  // ─────────────────────────────────────────
+  //  REALTIME ORDERS
+  // ─────────────────────────────────────────
   void _listenToOrders() {
     _ordersChannel?.unsubscribe();
-
     _ordersChannel = supabase
         .channel('orders-realtime')
         .onPostgresChanges(
           event: PostgresChangeEvent.all,
           schema: 'public',
           table: 'orders',
-          callback: (payload) async {
-            print("Realtime update received");
-            await _loadDriverData();
-          },
+          callback: (_) async => await _loadDriverData(),
         )
         .subscribe();
   }
 
-  // ================= LOAD DATA =================
+  // ─────────────────────────────────────────
+  //  LOAD DATA
+  // ─────────────────────────────────────────
   Future<void> _loadDriverData() async {
     final session = supabase.auth.currentSession;
     if (session == null) return;
 
-    // 1) users row
     final userRes = await supabase
         .from('users')
         .select('id, name')
         .eq('auth_id', session.user.id)
         .single();
 
-    final String userId = (userRes['id']).toString();
+    final String userId = userRes['id'].toString();
     driverName = (userRes['name'] ?? '').toString();
 
-    // 2) driver profile
     final driverRes = await supabase
         .from('driver_profiles')
         .select('vehicle_type, rating, total_orders, is_active')
@@ -215,7 +220,6 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
     todayOrders = (driverRes['total_orders'] ?? 0) as int;
     isOnline = (driverRes['is_active'] ?? false) as bool;
 
-    // 3) earnings today
     final now = DateTime.now();
     final startOfDay = DateTime(now.year, now.month, now.day);
 
@@ -231,7 +235,6 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
       (sum, item) => sum + ((item['total'] ?? 0) as num).toDouble(),
     );
 
-    // 4) available orders (VIEW)
     final ordersRes = await supabase
         .from('driver_available_orders')
         .select('*')
@@ -241,38 +244,29 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
 
     newOrders = List<Map<String, dynamic>>.from(ordersRes as List);
 
-    if (!mounted) return;
-    setState(() {});
+    if (mounted) setState(() {});
   }
 
-  // ================= TOGGLE STATUS =================
+  // ─────────────────────────────────────────
+  //  TOGGLE STATUS
+  // ─────────────────────────────────────────
   Future<void> _toggleStatus(bool value) async {
-    // ✅ 1) حدثي UI فوراً
     setState(() => isOnline = value);
-
     final session = supabase.auth.currentSession;
     if (session == null) return;
-
     try {
       final userRes = await supabase
           .from('users')
           .select('id')
           .eq('auth_id', session.user.id)
           .single();
-
-      final String userId = userRes['id'].toString();
-
       await supabase
           .from('driver_profiles')
           .update({'status': value ? 'online' : 'offline'})
-          .eq('id', userId);
-      if (!value) {
-        _stopTracking();
-      }
+          .eq('id', userRes['id'].toString());
+      if (!value) _stopTracking();
     } catch (e) {
-      // ❌ لو فشل رجعي الحالة
       setState(() => isOnline = !value);
-      print("Toggle failed: $e");
     }
   }
 
@@ -281,7 +275,9 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
     _positionStream = null;
   }
 
-  // ================= ACCEPT ORDER =================
+  // ─────────────────────────────────────────
+  //  ACCEPT ORDER
+  // ─────────────────────────────────────────
   Future<void> _acceptOrder(String orderId, Map<String, dynamic> order) async {
     final session = supabase.auth.currentSession;
     if (session == null) return;
@@ -291,28 +287,20 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
         .select('id')
         .eq('auth_id', session.user.id)
         .single();
+    final String userId = userRes['id'].toString();
 
-    final String userId = (userRes['id']).toString();
-
-    // ✅ 1️⃣ جيب موقع العميل أولاً قبل ما يختفي من الـ view
     final orderRes = await supabase
         .from('driver_available_orders')
         .select('lat, lng')
         .eq('id', orderId)
         .maybeSingle();
 
-    if (orderRes == null) {
-      return;
-    }
+    if (orderRes == null) return;
 
     activeClientLat = (orderRes['lat'] as num?)?.toDouble();
     activeClientLng = (orderRes['lng'] as num?)?.toDouble();
+    if (activeClientLat == null || activeClientLng == null) return;
 
-    if (activeClientLat == null || activeClientLng == null) {
-      return;
-    }
-
-    // ✅ 2️⃣ الآن حدث الطلب
     await supabase
         .from('orders')
         .update({
@@ -324,19 +312,19 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
 
     hasActiveOrder = true;
 
-    if (currentPosition == null) return;
+    if (currentPosition != null) {
+      final points = await _fetchRoute(
+        currentPosition!.latitude,
+        currentPosition!.longitude,
+        activeClientLat!,
+        activeClientLng!,
+      );
+      _buildPolyline(points);
+    }
 
-    // ✅ 3️⃣ احسب المسار
-    routePoints.clear();
-    routePoints = await _fetchRoute(
-      currentPosition!.latitude,
-      currentPosition!.longitude,
-      activeClientLat!,
-      activeClientLng!,
-    );
+    _buildMarkers();
+    if (mounted) setState(() {});
 
-    if (!mounted) return;
-    setState(() {});
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -345,7 +333,9 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
     );
   }
 
-  // ================= DECLINE ORDER =================
+  // ─────────────────────────────────────────
+  //  DECLINE ORDER
+  // ─────────────────────────────────────────
   Future<void> _declineOrder(String orderId) async {
     await supabase
         .from('orders')
@@ -354,37 +344,105 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
     await _loadDriverData();
   }
 
-  // ================= DRIVER LOCATION =================
+  // ─────────────────────────────────────────
+  //  GPS
+  // ─────────────────────────────────────────
   Future<void> _getCurrentLocation() async {
-    final serviceEnabled = await Geolocator.isLocationServiceEnabled();
-    if (!serviceEnabled) return;
-
-    var permission = await Geolocator.checkPermission();
-    if (permission == LocationPermission.denied) {
-      permission = await Geolocator.requestPermission();
+    if (!await Geolocator.isLocationServiceEnabled()) return;
+    var perm = await Geolocator.checkPermission();
+    if (perm == LocationPermission.denied) {
+      perm = await Geolocator.requestPermission();
     }
-
-    if (permission == LocationPermission.deniedForever ||
-        permission == LocationPermission.denied) {
+    if (perm == LocationPermission.denied ||
+        perm == LocationPermission.deniedForever)
       return;
-    }
 
     currentPosition = await Geolocator.getCurrentPosition(
       desiredAccuracy: LocationAccuracy.high,
     );
-
-    if (!mounted) return;
-    setState(() {});
+    if (mounted) setState(() {});
   }
 
-  // ================= UI =================
+  // ─────────────────────────────────────────
+  //  ROUTE
+  // ─────────────────────────────────────────
+  Future<List<LatLng>> _fetchRoute(
+    double startLat,
+    double startLng,
+    double endLat,
+    double endLng,
+  ) async {
+    try {
+      final url =
+          'https://router.project-osrm.org/route/v1/driving/'
+          '$startLng,$startLat;$endLng,$endLat'
+          '?overview=full&geometries=geojson';
+
+      final response = await http
+          .get(Uri.parse(url))
+          .timeout(const Duration(seconds: 10));
+
+      if (response.statusCode != 200) return [];
+
+      final data = jsonDecode(response.body);
+      final routes = data['routes'] as List?;
+      if (routes == null || routes.isEmpty) return [];
+
+      final coords = routes[0]['geometry']['coordinates'] as List;
+      return coords
+          .map(
+            (c) => LatLng((c[1] as num).toDouble(), (c[0] as num).toDouble()),
+          )
+          .toList();
+    } catch (e) {
+      debugPrint('_fetchRoute error: $e');
+      return [];
+    }
+  }
+
+  double _calculateDistanceKm(double lat, double lng) {
+    if (currentPosition == null) return 0;
+    return Geolocator.distanceBetween(
+          currentPosition!.latitude,
+          currentPosition!.longitude,
+          lat,
+          lng,
+        ) /
+        1000.0;
+  }
+
+  Future<void> _previewRouteToClient(double lat, double lng) async {
+    if (currentPosition == null) return;
+    activeClientLat = lat;
+    activeClientLng = lng;
+    final points = await _fetchRoute(
+      currentPosition!.latitude,
+      currentPosition!.longitude,
+      lat,
+      lng,
+    );
+    _buildPolyline(points);
+    _buildMarkers();
+    if (points.isNotEmpty) _moveTo(points.first);
+  }
+
+  // ─────────────────────────────────────────
+  //  BUILD
+  // ─────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
     final text = AppColors.text(context);
     final bg = AppColors.bg(context);
     final card = AppColors.card(context);
     final primary = AppColors.primary(context);
-    final textGrey = AppColors.textGrey(context);
+    final grey = AppColors.textGrey(context);
+
+    final mapInitialPos = CameraPosition(
+      target: currentPosition != null
+          ? LatLng(currentPosition!.latitude, currentPosition!.longitude)
+          : const LatLng(25.2048, 55.2708),
+      zoom: 15,
+    );
 
     return Scaffold(
       backgroundColor: bg,
@@ -393,7 +451,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
           padding: const EdgeInsets.only(bottom: 20),
           child: Column(
             children: [
-              // ================= HEADER =================
+              // ── HEADER ───────────────────────────────────
               Container(
                 padding: const EdgeInsets.fromLTRB(16, 20, 16, 20),
                 decoration: BoxDecoration(
@@ -417,7 +475,6 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
                           child: Icon(Icons.person_outline, color: text),
                         ),
                         const SizedBox(width: 12),
-
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
@@ -456,8 +513,6 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
                             ],
                           ),
                         ),
-
-                        // 🔔 Bell + Badge
                         Stack(
                           clipBehavior: Clip.none,
                           children: [
@@ -481,9 +536,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
                               ),
                           ],
                         ),
-
                         const SizedBox(width: 12),
-
                         Switch(
                           value: isOnline,
                           onChanged: _toggleStatus,
@@ -491,9 +544,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
                         ),
                       ],
                     ),
-
                     const SizedBox(height: 16),
-
                     Container(
                       padding: const EdgeInsets.symmetric(
                         horizontal: 18,
@@ -535,8 +586,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
 
               const SizedBox(height: 16),
 
-              // ================= KPI =================
-              // ================= SMART DRIVER PANEL =================
+              // ── KPI PANEL ────────────────────────────────
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 child: Container(
@@ -544,10 +594,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
                   decoration: BoxDecoration(
                     color: card,
                     borderRadius: BorderRadius.circular(24),
-                    border: Border.all(
-                      color: AppColors.primary(context),
-                      width: 1.5,
-                    ),
+                    border: Border.all(color: primary, width: 1.5),
                   ),
                   child: Row(
                     children: [
@@ -556,7 +603,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
                             ? Icons.local_shipping
                             : Icons.inventory_2_outlined,
                         size: 28,
-                        color: AppColors.primary(context),
+                        color: primary,
                       ),
                       const SizedBox(width: 14),
                       Expanded(
@@ -568,7 +615,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
                                   ? L.t('active_delivery')
                                   : L.t('todays_orders'),
                               style: TextStyle(
-                                color: AppColors.text(context),
+                                color: text,
                                 fontWeight: FontWeight.w900,
                                 fontSize: 14,
                               ),
@@ -579,7 +626,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
                                   ? L.t('delivery_in_progress')
                                   : '$todayOrders',
                               style: TextStyle(
-                                color: AppColors.text(context),
+                                color: text,
                                 fontSize: 20,
                                 fontWeight: FontWeight.w900,
                               ),
@@ -589,20 +636,18 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
                       ),
                       if (hasActiveOrder)
                         ElevatedButton(
-                          onPressed: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => DriverOrderDetailsScreen(
-                                  orderId: newOrders.isNotEmpty
-                                      ? newOrders.first['id']
-                                      : '',
-                                ),
+                          onPressed: () => Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => DriverOrderDetailsScreen(
+                                orderId: newOrders.isNotEmpty
+                                    ? newOrders.first['id']
+                                    : '',
                               ),
-                            );
-                          },
+                            ),
+                          ),
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: AppColors.primary(context),
+                            backgroundColor: primary,
                             foregroundColor: AppColors.textOnPrimary(context),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(999),
@@ -620,99 +665,44 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
 
               const SizedBox(height: 20),
 
-              // ================= MAP =================
+              // ── MAP ──────────────────────────────────────
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 child: Container(
                   height: 220,
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: textGrey.withValues(alpha: 0.25)),
+                    border: Border.all(color: grey.withValues(alpha: 0.25)),
                   ),
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(20),
                     child: currentPosition == null
                         ? Center(
                             child: _loading
-                                ? CircularProgressIndicator(
-                                    color: AppColors.primary(context),
-                                  )
+                                ? CircularProgressIndicator(color: primary)
                                 : Text(
                                     L.t('loading'),
                                     style: TextStyle(
-                                      color: AppColors.textGrey(context),
+                                      color: grey,
                                       fontWeight: FontWeight.w700,
                                     ),
                                   ),
                           )
-                        : FlutterMap(
-                            mapController: _mapController,
-                            options: MapOptions(
-                              initialCenter: routePoints.isNotEmpty
-                                  ? routePoints.first
-                                  : LatLng(
-                                      currentPosition!.latitude,
-                                      currentPosition!.longitude,
-                                    ),
-                              initialZoom: 15,
-                            ),
-
-                            children: [
-                              // ================= TILE =================
-                              TileLayer(
-                                urlTemplate:
-                                    'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                                userAgentPackageName:
-                                    'com.example.flutter_application_1',
-                              ),
-
-                              // ================= MARKERS =================
-                              MarkerLayer(
-                                markers: [
-                                  // Driver marker
-                                  Marker(
-                                    point: LatLng(
-                                      currentPosition!.latitude,
-                                      currentPosition!.longitude,
-                                    ),
-                                    width: 40,
-                                    height: 40,
-                                    child: Icon(
-                                      Icons.delivery_dining,
-                                      color: Colors.redAccent,
-                                    ),
-                                  ),
-
-                                  // Client marker
-                                  if (activeClientLat != null &&
-                                      activeClientLng != null)
-                                    Marker(
-                                      point: LatLng(
-                                        activeClientLat!,
-                                        activeClientLng!,
-                                      ),
-                                      width: 40,
-                                      height: 40,
-                                      child: Icon(
-                                        Icons.location_on,
-                                        color: AppColors.error(context),
-                                      ),
-                                    ),
-                                ],
-                              ),
-
-                              // ================= ROUTE =================
-                              if (routePoints.isNotEmpty)
-                                PolylineLayer(
-                                  polylines: [
-                                    Polyline(
-                                      points: routePoints,
-                                      strokeWidth: 4,
-                                      color: AppColors.primary(context),
-                                    ),
-                                  ],
-                                ),
-                            ],
+                        : GoogleMap(
+                            initialCameraPosition: mapInitialPos,
+                            mapType: MapType.normal,
+                            myLocationEnabled: false,
+                            myLocationButtonEnabled: false,
+                            zoomControlsEnabled: false,
+                            markers: _markers,
+                            polylines: _polylines,
+                            onMapCreated: (controller) {
+                              if (!_mapCompleter.isCompleted) {
+                                _mapCompleter.complete(controller);
+                              }
+                              _mapController = controller;
+                              _buildMarkers();
+                            },
                           ),
                   ),
                 ),
@@ -720,7 +710,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
 
               const SizedBox(height: 20),
 
-              // ================= NEW ORDERS =================
+              // ── NEW ORDERS ───────────────────────────────
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 child: Row(
@@ -741,7 +731,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
                         height: 18,
                         child: CircularProgressIndicator(
                           strokeWidth: 2,
-                          color: AppColors.primary(context),
+                          color: primary,
                         ),
                       ),
                   ],
@@ -754,21 +744,13 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 child: Column(
                   children: newOrders.map((order) {
-                    final createdAt = (order['created_at'] ?? '').toString();
-
-                    final double? lat = order['lat'] == null
-                        ? null
-                        : (order['lat'] as num).toDouble();
-                    final double? lng = order['lng'] == null
-                        ? null
-                        : (order['lng'] as num).toDouble();
+                    final double? lat = (order['lat'] as num?)?.toDouble();
+                    final double? lng = (order['lng'] as num?)?.toDouble();
 
                     double? km;
-                    if (lat != null && lng != null && currentPosition != null) {
+                    if (lat != null && lng != null) {
                       km = _calculateDistanceKm(lat, lng);
                     }
-
-                    final orderId = (order['id']).toString();
 
                     return _newOrderCard(
                       context,
@@ -776,17 +758,14 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
                       customerName: (order['customer_name'] ?? '').toString(),
                       area: (order['area'] ?? '').toString(),
                       street: (order['street'] ?? '').toString(),
-                      createdAt: createdAt,
+                      createdAt: (order['created_at'] ?? '').toString(),
                       distanceKm: km,
-
-                      // ✅ Tap preview route
                       onTap: (lat != null && lng != null)
                           ? () => _previewRouteToClient(lat, lng)
                           : null,
-
-                      // ✅ Accept will navigate (بنعدلها تحت)
-                      onAccept: () => _acceptOrder(orderId, order),
-                      onDecline: () => _declineOrder(orderId),
+                      onAccept: () =>
+                          _acceptOrder(order['id'].toString(), order),
+                      onDecline: () => _declineOrder(order['id'].toString()),
                     );
                   }).toList(),
                 ),
@@ -798,30 +777,44 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
     );
   }
 
-  // ================= WIDGETS =================
-
+  // ─────────────────────────────────────────
+  //  HELPERS
+  // ─────────────────────────────────────────
   IconData _vehicleIcon(String raw) {
     final v = raw.toLowerCase().trim();
+    if (v == 'motorcycle' || v == 'bike') return Icons.two_wheeler;
+    if (v == 'car') return Icons.directions_car;
+    if (v == 'bicycle') return Icons.pedal_bike;
+    return Icons.local_shipping;
+  }
 
-    if (v == 'motorcycle' || v == 'bike') {
-      return Icons.two_wheeler;
-    } else if (v == 'car') {
-      return Icons.directions_car;
-    } else if (v == 'bicycle') {
-      return Icons.pedal_bike;
-    } else {
-      return Icons.local_shipping;
+  String _vehicleLabel(String raw) {
+    final v = raw.toLowerCase().trim();
+    if (v == 'motorcycle' || v == 'bike') return L.t('vehicle_motorcycle');
+    if (v == 'car') return L.t('vehicle_car');
+    if (v == 'bicycle') return L.t('vehicle_bicycle');
+    return raw.isEmpty ? '' : raw;
+  }
+
+  String _timeAgoText(String createdAt) {
+    try {
+      final mins = DateTime.now()
+          .difference(DateTime.parse(createdAt))
+          .inMinutes;
+      if (mins <= 0) return '1 ${L.t('min_ago')}';
+      return '$mins ${L.t('min_ago')}';
+    } catch (_) {
+      return '';
     }
   }
 
-  Widget _dot({required Color color}) {
-    return Container(
-      width: 8,
-      height: 8,
-      decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-    );
-  }
+  Widget _dot({required Color color}) => Container(
+    width: 8,
+    height: 8,
+    decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+  );
 
+  // ─────────────────────────────────────────
   Widget _newOrderCard(
     BuildContext context, {
     required int orderNumber,
@@ -838,8 +831,6 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
     final text = AppColors.text(context);
     final textGrey = AppColors.textGrey(context);
     final card = AppColors.card(context);
-
-    final timeAgo = _timeAgoText(createdAt);
 
     final distanceText = (distanceKm == null || distanceKm <= 0)
         ? '— km'
@@ -859,7 +850,6 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // ===== TOP ROW =====
             Row(
               children: [
                 Container(
@@ -882,7 +872,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
                 ),
                 const SizedBox(width: 10),
                 Text(
-                  timeAgo,
+                  _timeAgoText(createdAt),
                   style: TextStyle(
                     color: textGrey,
                     fontWeight: FontWeight.w700,
@@ -910,9 +900,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
                 ),
               ],
             ),
-
             const SizedBox(height: 12),
-
             Text(
               customerName.isEmpty ? L.t('customer') : customerName,
               style: TextStyle(
@@ -921,9 +909,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
                 fontSize: 16,
               ),
             ),
-
             const SizedBox(height: 6),
-
             Row(
               children: [
                 Icon(Icons.location_on_outlined, size: 16, color: textGrey),
@@ -939,9 +925,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
                 ),
               ],
             ),
-
             const SizedBox(height: 16),
-
             Row(
               children: [
                 Expanded(
@@ -990,27 +974,5 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
         ),
       ),
     );
-  }
-
-  Future<void> _previewRouteToClient(double lat, double lng) async {
-    if (currentPosition == null) return;
-
-    // نخزن العميل الحالي
-    activeClientLat = lat;
-    activeClientLng = lng;
-
-    // نجيب المسار
-    routePoints = await _fetchRoute(
-      currentPosition!.latitude,
-      currentPosition!.longitude,
-      lat,
-      lng,
-    );
-
-    if (!mounted) return;
-    setState(() {});
-    if (routePoints.isNotEmpty) {
-      _mapController.move(routePoints.first, 15);
-    }
   }
 }
