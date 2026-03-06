@@ -19,11 +19,22 @@ class DriverTrackingService {
     const androidSettings = AndroidInitializationSettings(
       '@mipmap/ic_launcher',
     );
-    const initSettings = InitializationSettings(android: androidSettings);
+
+    // ✅ إضافة iOS settings
+    const iosSettings = DarwinInitializationSettings(
+      requestAlertPermission: false,
+      requestBadgePermission: false,
+      requestSoundPermission: false,
+    );
+
+    const initSettings = InitializationSettings(
+      android: androidSettings,
+      iOS: iosSettings, // ← هذا كان ناقص
+    );
 
     await _notifications.initialize(initSettings);
 
-    // ✅ Android notification channel
+    // Android notification channel
     const AndroidNotificationChannel channel = AndroidNotificationChannel(
       _channelId,
       'Driver Tracking',
@@ -60,11 +71,10 @@ class DriverTrackingService {
 
   static Future<void> start({
     required String orderId,
-    required String driverUserId, // users.id (internal)
+    required String driverUserId,
   }) async {
     var permission = await Geolocator.checkPermission();
 
-    // ⚠️ للخلفية غالباً تحتاج Always (حسب الجهاز/الإصدار)
     if (permission != LocationPermission.always) {
       permission = await Geolocator.requestPermission();
     }
@@ -75,7 +85,6 @@ class DriverTrackingService {
     }
 
     await _service.startService();
-
     _service.invoke("start", {
       "orderId": orderId,
       "driverUserId": driverUserId,
@@ -88,12 +97,11 @@ class DriverTrackingService {
 
   @pragma('vm:entry-point')
   static void _onStart(ServiceInstance service) async {
-    DartPluginRegistrant.ensureInitialized(); // 🔥 مهم جداً
+    DartPluginRegistrant.ensureInitialized();
 
     StreamSubscription<Position>? positionStream;
     final supabase = Supabase.instance.client;
 
-    // نخفف ضغط الإشعارات: تحديث كل 5 ثواني
     DateTime lastNotify = DateTime.fromMillisecondsSinceEpoch(0);
 
     service.on("start").listen((event) async {
@@ -131,12 +139,11 @@ class DriverTrackingService {
               }, onConflict: 'order_id');
 
               statusText =
-                  "✅ DB OK | ${position.latitude.toStringAsFixed(5)}, ${position.longitude.toStringAsFixed(5)}";
+                  "✅ ${position.latitude.toStringAsFixed(5)}, ${position.longitude.toStringAsFixed(5)}";
             } catch (e) {
               statusText = "❌ DB ERROR | $e";
             }
 
-            // ✅ إشعار واحد فقط كل 5 ثواني
             if (service is AndroidServiceInstance) {
               final now = DateTime.now();
               if (now.difference(lastNotify).inSeconds >= 5) {
