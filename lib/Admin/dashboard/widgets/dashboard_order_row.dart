@@ -89,7 +89,7 @@ class DashboardOrderRow extends StatelessWidget {
         return Colors.blue;
       case 'preparing':
         return Colors.deepOrange;
-      case 'out for delivery':
+      case 'out_for_delivery':
         return Colors.purple;
       case 'delivered':
         return Colors.green;

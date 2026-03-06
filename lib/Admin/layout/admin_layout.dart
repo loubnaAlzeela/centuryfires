@@ -15,6 +15,7 @@ import '../settings/admin_settings_screen.dart';
 import '../admin_profile_screen.dart';
 import '../../utils/l.dart';
 import '../drivers/drivers_screen.dart';
+import '../../screens/home_screen.dart';
 
 class AdminLayout extends StatefulWidget {
   const AdminLayout({super.key});
@@ -50,6 +51,19 @@ class _AdminLayoutState extends State<AdminLayout> {
             fontWeight: FontWeight.bold,
           ),
         ),
+        actions: [
+          // ===== Preview Customer Home Button (AppBar action) =====
+          Tooltip(
+            message: L.t('preview_customer_home'),
+            child: IconButton(
+              icon: Icon(
+                Icons.visibility_outlined,
+                color: AppColors.text(context),
+              ),
+              onPressed: _openCustomerPreview,
+            ),
+          ),
+        ],
       ),
 
       // ===== Drawer =====
@@ -61,27 +75,95 @@ class _AdminLayoutState extends State<AdminLayout> {
       ),
 
       // ===== Body =====
-      body: AnimatedSwitcher(
-        duration: const Duration(milliseconds: 300),
-        switchInCurve: Curves.easeOut,
-        switchOutCurve: Curves.easeIn,
-        transitionBuilder: (Widget child, Animation<double> animation) {
-          return FadeTransition(
-            opacity: animation,
-            child: SlideTransition(
-              position: Tween<Offset>(
-                begin: const Offset(0.0, 0.05),
-                end: Offset.zero,
-              ).animate(animation),
-              child: child,
+      body: Column(
+        children: [
+          // ===== Preview Customer Home Card =====
+          _buildPreviewCard(context),
+
+          // ===== Main Page Content =====
+          Expanded(
+            child: AnimatedSwitcher(
+              duration: const Duration(milliseconds: 300),
+              switchInCurve: Curves.easeOut,
+              switchOutCurve: Curves.easeIn,
+              transitionBuilder: (Widget child, Animation<double> animation) {
+                return FadeTransition(
+                  opacity: animation,
+                  child: SlideTransition(
+                    position: Tween<Offset>(
+                      begin: const Offset(0.0, 0.05),
+                      end: Offset.zero,
+                    ).animate(animation),
+                    child: child,
+                  ),
+                );
+              },
+              child: Container(
+                key: ValueKey<AdminPage>(_currentPage),
+                child: _buildPage(_currentPage),
+              ),
             ),
-          );
-        },
-        child: Container(
-          key: ValueKey<AdminPage>(_currentPage),
-          child: _buildPage(_currentPage),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ================= PREVIEW CARD =================
+  Widget _buildPreviewCard(BuildContext context) {
+    return GestureDetector(
+      onTap: _openCustomerPreview,
+      child: Container(
+        margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        decoration: BoxDecoration(
+          color: AppColors.primary(context).withOpacity(0.1),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: AppColors.primary(context).withOpacity(0.35),
+            width: 1,
+          ),
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: AppColors.primary(context).withOpacity(0.2),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                Icons.visibility_outlined,
+                color: AppColors.primary(context),
+                size: 20,
+              ),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Text(
+                L.t('preview_customer_home'),
+                style: TextStyle(
+                  color: AppColors.text(context),
+                  fontWeight: FontWeight.w600,
+                  fontSize: 14,
+                ),
+              ),
+            ),
+            Icon(
+              Icons.arrow_forward_ios_rounded,
+              size: 14,
+              color: AppColors.textGrey(context),
+            ),
+          ],
         ),
       ),
+    );
+  }
+
+  // ================= OPEN PREVIEW =================
+  void _openCustomerPreview() {
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const HomeScreen(isPreviewMode: true)),
     );
   }
 

@@ -166,6 +166,27 @@ class L {
       'Phone number with country code',
       'رقم الهاتف مع رمز الدولة',
     ],
+    'preview_mode': ['Preview Mode', 'وضع المعاينة'],
+    'preview_customer_home': [
+      'Preview Customer Home',
+      'معاينة الصفحة الرئيسية للعميل',
+    ],
+    'edit_size': ['Edit Size', 'تعديل القياس'],
+    'delete_size': ['Delete Size', 'حذف القياس'],
+    'delete_confirmation': [
+      'Are you sure you want to delete this item?',
+      'هل أنت متأكد من حذف هذا العنصر؟',
+    ],
+    'size_name_en': ['Size Name (EN)', 'اسم القياس بالإنجليزية'],
+    'size_name_ar': ['Size Name (AR)', 'اسم القياس بالعربية'],
+    'sort_order': ['Sort Order', 'الترتيب'],
+    'is_active': ['Active', 'نشط'],
+    'added_successfully': ['Added successfully', 'تمت الإضافة بنجاح'],
+    'deleted_successfully': ['Deleted successfully', 'تم الحذف بنجاح'],
+    'please_fill_all_fields': [
+      'Please fill all required fields',
+      'يرجى تعبئة جميع الحقول المطلوبة',
+    ],
 
     'phone_invalid_format': [
       'Invalid phone format (e.g. +971XXXXXXXXX)',

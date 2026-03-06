@@ -146,8 +146,9 @@ class _LoginSignupScreenState extends State<LoginSignupScreen>
 
       if (session == null) return;
       if (event != AuthChangeEvent.signedIn &&
-          event != AuthChangeEvent.tokenRefreshed)
+          event != AuthChangeEvent.tokenRefreshed) {
         return;
+      }
 
       final supabase = Supabase.instance.client;
 
@@ -547,25 +548,33 @@ class _LoginSignupScreenState extends State<LoginSignupScreen>
   String _mapAuthError(AuthException e) {
     final msg = e.message.toLowerCase();
     if (_isUserAlreadyExists(e)) return L.t('err_user_exists');
-    if (msg.contains('invalid login') || msg.contains('invalid_credentials'))
+    if (msg.contains('invalid login') || msg.contains('invalid_credentials')) {
       return L.t('err_invalid_credentials');
+    }
     if (_isEmailNotConfirmed(e)) {
       return _isPhone
           ? L.t('err_phone_provider_disabled')
           : L.t('err_email_not_confirmed');
     }
-    if (msg.contains('phone') && msg.contains('not'))
+    if (msg.contains('phone') && msg.contains('not')) {
       return L.t('err_phone_provider_disabled');
+    }
     if (msg.contains('sms') ||
         msg.contains('twilio') ||
-        msg.contains('provider'))
+        msg.contains('provider')) {
       return L.t('err_phone_provider_disabled');
-    if (msg.contains('network') || msg.contains('socket'))
+    }
+    if (msg.contains('network') || msg.contains('socket')) {
       return L.t('err_network');
-    if (msg.contains('otp') || msg.contains('token') || msg.contains('expired'))
+    }
+    if (msg.contains('otp') ||
+        msg.contains('token') ||
+        msg.contains('expired')) {
       return L.t('err_otp_invalid');
-    if (msg.contains('rate') || msg.contains('too many'))
+    }
+    if (msg.contains('rate') || msg.contains('too many')) {
       return L.t('err_too_many_requests');
+    }
     return '${L.t('err_general')}: ${e.message}';
   }
 
@@ -725,8 +734,9 @@ class _LoginSignupScreenState extends State<LoginSignupScreen>
                 ? (v) {
                     final val = v?.trim() ?? '';
                     if (val.isEmpty) return L.t('phone_required');
-                    if (!_phoneRegex.hasMatch(val))
+                    if (!_phoneRegex.hasMatch(val)) {
                       return L.t('phone_invalid_format');
+                    }
                     return null;
                   }
                 : null,
@@ -794,10 +804,12 @@ class _LoginSignupScreenState extends State<LoginSignupScreen>
             validator: (v) {
               final val = v?.trim() ?? '';
               if (val.isEmpty) return L.t('field_required');
-              if (_isPhone && !_phoneRegex.hasMatch(val))
+              if (_isPhone && !_phoneRegex.hasMatch(val)) {
                 return L.t('phone_invalid_format');
-              if (_isEmail && !_emailRegex.hasMatch(val))
+              }
+              if (_isEmail && !_emailRegex.hasMatch(val)) {
                 return L.t('email_invalid');
+              }
               return null;
             },
             decoration: InputDecoration(
@@ -1043,8 +1055,9 @@ class _LoginSignupScreenState extends State<LoginSignupScreen>
             _resetOtpState();
             if (_isEmail && _secondFieldVisible) {
               Future.delayed(const Duration(milliseconds: 650), () {
-                if (mounted && _isEmail)
+                if (mounted && _isEmail) {
                   setState(() => _phoneFieldVisible = true);
+                }
               });
             }
           });

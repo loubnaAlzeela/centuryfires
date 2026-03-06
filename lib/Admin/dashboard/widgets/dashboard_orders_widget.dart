@@ -232,7 +232,9 @@ class _DashboardOrdersWidgetState extends State<DashboardOrdersWidget> {
                   ),
                   child: DashboardOrderRow(
                     orderId: isVIP ? '$customerName ⭐' : customerName,
-                    status: _mapStatus(o['status']),
+                    // ✅ pass raw status — DashboardOrderRow handles
+                    // normalization and L.t() translation internally
+                    status: o['status'] ?? '',
                     time: _timeAgo(createdAt),
                   ),
                 ),
@@ -254,25 +256,6 @@ class _DashboardOrdersWidgetState extends State<DashboardOrdersWidget> {
       ),
       child: child,
     );
-  }
-
-  String _mapStatus(String status) {
-    switch (status) {
-      case 'pending':
-        return L.t('pending');
-      case 'confirmed':
-        return L.t('confirmed');
-      case 'preparing':
-        return L.t('preparing');
-      case 'out_for_delivery':
-        return L.t('out_for_delivery');
-      case 'delivered':
-        return L.t('delivered');
-      case 'cancelled':
-        return L.t('cancelled');
-      default:
-        return status;
-    }
   }
 
   String _timeAgo(DateTime date) {

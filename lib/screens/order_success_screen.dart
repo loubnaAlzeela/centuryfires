@@ -51,32 +51,6 @@ class OrderSuccessScreen extends StatelessWidget {
 
               const SizedBox(height: 32),
 
-              // 🔁 Track order (later)
-              SizedBox(
-                width: double.infinity,
-                height: 52,
-                child: OutlinedButton(
-                  onPressed: () {
-                    // TODO: Track Order لاحقًا
-                  },
-                  style: OutlinedButton.styleFrom(
-                    side: BorderSide(color: AppColors.primary(context)),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                  ),
-                  child: Text(
-                    L.t('order_success_track'),
-                    style: TextStyle(
-                      color: AppColors.primary(context),
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-              ),
-
-              const SizedBox(height: 12),
-
               // 🏠 Back to Home
               SizedBox(
                 width: double.infinity,

@@ -18,7 +18,11 @@ import '../utils/l.dart';
 import '../utils/language_controller.dart';
 
 class HomeScreen extends StatefulWidget {
-  const HomeScreen({super.key});
+  /// When [isPreviewMode] is true, the screen is rendered inside an admin
+  /// session for preview purposes only. No auth changes are made.
+  final bool isPreviewMode;
+
+  const HomeScreen({super.key, this.isPreviewMode = false});
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -76,6 +80,13 @@ class _HomeScreenState extends State<HomeScreen>
 
   // ================= USER + DELIVERY =================
   Future<void> _initUserAndDeliveryType() async {
+    // In preview mode we skip user-specific data fetching to avoid
+    // touching the admin's session or writing to the wrong user record.
+    if (widget.isPreviewMode) {
+      if (mounted) setState(() => isLoadingDeliveryType = false);
+      return;
+    }
+
     try {
       final authId = supabase.auth.currentUser?.id;
       if (authId == null) {
@@ -133,6 +144,49 @@ class _HomeScreenState extends State<HomeScreen>
     super.dispose();
   }
 
+  // ================= PREVIEW BANNER =================
+  Widget _buildPreviewBanner() {
+    final topPadding = MediaQuery.of(context).padding.top;
+    return Container(
+      width: double.infinity,
+      color: AppColors.primary(context).withOpacity(0.15),
+      padding: EdgeInsets.only(
+        top: topPadding + 6,
+        bottom: 6,
+        left: 16,
+        right: 16,
+      ),
+      child: Row(
+        children: [
+          Icon(
+            Icons.visibility_outlined,
+            size: 18,
+            color: AppColors.primary(context),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              L.t('preview_mode'),
+              style: TextStyle(
+                color: AppColors.primary(context),
+                fontWeight: FontWeight.w600,
+                fontSize: 13,
+              ),
+            ),
+          ),
+          GestureDetector(
+            onTap: () => Navigator.of(context).pop(),
+            child: Icon(
+              Icons.close,
+              size: 18,
+              color: AppColors.primary(context),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   // ================= UI =================
   @override
   Widget build(BuildContext context) {
@@ -155,95 +209,114 @@ class _HomeScreenState extends State<HomeScreen>
 
         return Scaffold(
           backgroundColor: AppColors.bg(context),
-          body: NestedScrollView(
-            headerSliverBuilder: (context, innerBoxIsScrolled) {
-              return [
-                SliverToBoxAdapter(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+          extendBodyBehindAppBar: true,
+          body: Column(
+            children: [
+              // Preview banner sits above everything, only when in preview mode
+              if (widget.isPreviewMode) _buildPreviewBanner(),
+
+              Expanded(
+                child: NestedScrollView(
+                  headerSliverBuilder: (context, innerBoxIsScrolled) {
+                    return [
+                      SliverToBoxAdapter(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            AppHeader(
+                              restaurantName: isArabic
+                                  ? restaurantNameAr
+                                  : restaurantNameEn,
+                            ),
+                            PromoSlider(),
+                            OrderTypeSelector(
+                              initialType: selectedDeliveryType,
+                              onChanged: (value) async {
+                                if (value == selectedDeliveryType) return;
+
+                                setState(() {
+                                  selectedDeliveryType = value;
+                                });
+
+                                // Do not persist delivery type changes in preview mode
+                                if (widget.isPreviewMode) return;
+                                if (internalUserId == null) return;
+
+                                await supabase
+                                    .from('users')
+                                    .update({'preferred_delivery_type': value})
+                                    .eq('id', internalUserId!);
+                              },
+                            ),
+                            SectionTitle(
+                              title: L.t('recommended'),
+                              subtitle: '',
+                            ),
+                            MealHorizontalListFromData(
+                              type: MealListType.recommended,
+                            ),
+                            SectionTitle(title: L.t('popular'), subtitle: ''),
+                            MealHorizontalListFromData(
+                              type: MealListType.popular,
+                            ),
+                            const SizedBox(height: 12),
+                          ],
+                        ),
+                      ),
+                      SliverAppBar(
+                        pinned: true,
+                        backgroundColor: AppColors.bg(context),
+                        elevation: 1,
+                        automaticallyImplyLeading: false,
+                        toolbarHeight: 0,
+                        bottom: PreferredSize(
+                          preferredSize: const Size.fromHeight(56),
+                          child: Container(
+                            alignment: Alignment.centerLeft,
+                            padding: const EdgeInsets.only(left: 8),
+                            child: TabBar(
+                              controller: _tabController,
+                              isScrollable: true,
+                              tabAlignment: TabAlignment.start,
+                              indicatorColor: Colors.transparent,
+                              labelPadding: const EdgeInsets.symmetric(
+                                horizontal: 6,
+                              ),
+                              tabs: [
+                                _buildTab(
+                                  text: L.t('all'),
+                                  isActive: _tabController!.index == 0,
+                                ),
+                                ...categories.asMap().entries.map((entry) {
+                                  final index = entry.key + 1;
+                                  final category = entry.value;
+                                  return _buildTab(
+                                    text: category.displayName(isArabic),
+                                    isActive: _tabController!.index == index,
+                                  );
+                                }),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ];
+                  },
+                  body: TabBarView(
+                    controller: _tabController,
                     children: [
-                      AppHeader(
-                        restaurantName: isArabic
-                            ? restaurantNameAr
-                            : restaurantNameEn,
+                      MealsSection(title: L.t('all'), categoryId: null),
+                      ...categories.map(
+                        (c) => MealsSection(
+                          title: c.displayName(isArabic),
+                          categoryId: c.id,
+                        ),
                       ),
-                      PromoSlider(),
-                      OrderTypeSelector(
-                        initialType: selectedDeliveryType,
-                        onChanged: (value) async {
-                          if (value == selectedDeliveryType) return;
-
-                          setState(() {
-                            selectedDeliveryType = value;
-                          });
-
-                          if (internalUserId == null) return;
-
-                          await supabase
-                              .from('users')
-                              .update({'preferred_delivery_type': value})
-                              .eq('id', internalUserId!);
-                        },
-                      ),
-                      SectionTitle(title: L.t('recommended'), subtitle: ''),
-                      MealHorizontalListFromData(
-                        type: MealListType.recommended,
-                      ),
-                      SectionTitle(title: L.t('popular'), subtitle: ''),
-                      MealHorizontalListFromData(type: MealListType.popular),
-                      const SizedBox(height: 12),
                     ],
                   ),
                 ),
-                SliverAppBar(
-                  pinned: true,
-                  backgroundColor: AppColors.bg(context),
-                  elevation: 1,
-                  automaticallyImplyLeading: false,
-                  toolbarHeight: 0,
-                  bottom: PreferredSize(
-                    preferredSize: const Size.fromHeight(56),
-                    child: Container(
-                      alignment: Alignment.centerLeft,
-                      padding: const EdgeInsets.only(left: 8),
-                      child: TabBar(
-                        controller: _tabController,
-                        isScrollable: true,
-                        tabAlignment: TabAlignment.start,
-                        indicatorColor: Colors.transparent,
-                        labelPadding: const EdgeInsets.symmetric(horizontal: 6),
-                        tabs: [
-                          _buildTab(
-                            text: L.t('all'),
-                            isActive: _tabController!.index == 0,
-                          ),
-                          ...categories.asMap().entries.map((entry) {
-                            final index = entry.key + 1;
-                            final category = entry.value;
-                            return _buildTab(
-                              text: category.displayName(isArabic),
-                              isActive: _tabController!.index == index,
-                            );
-                          }),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              ];
-            },
-            body: TabBarView(
-              controller: _tabController,
-              children: [
-                MealsSection(title: L.t('all'), categoryId: null),
-                ...categories.map(
-                  (c) => MealsSection(
-                    title: c.displayName(isArabic),
-                    categoryId: c.id,
-                  ),
-                ),
-              ],
-            ),
+              ),
+            ],
           ),
         );
       },
