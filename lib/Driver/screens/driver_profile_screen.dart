@@ -70,12 +70,18 @@ class _DriverProfileScreenState extends State<DriverProfileScreen> {
     final session = supabase.auth.currentSession;
     if (session == null) return;
 
-    await supabase
+    debugPrint('🔄 Updating $field = $value for auth_id: ${session.user.id}');
+
+    final res = await supabase
         .from('users')
         .update({field: value})
-        .eq('auth_id', session.user.id);
+        .eq('auth_id', session.user.id)
+        .select(); // ← أضيفي select()
+
+    debugPrint('✅ Update response: $res');
 
     await _loadProfile();
+    debugPrint('👤 After reload, driverName = $driverName');
   }
 
   Future<void> _editName() async {

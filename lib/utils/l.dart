@@ -438,7 +438,7 @@ class L {
 
     // AppHeader
     'app_header_brand': ['Century Fries', 'سنشري فرايز'],
-
+    'home': ['Home', 'الرئيسية'],
     // CartItemCard
     'cart_item_card_currency': ['SAR', 'ريال'],
 
@@ -878,6 +878,17 @@ class L {
     'light': ['Light', 'فاتح'],
     'arabic': ['Arabic', 'العربية'],
     'english': ['English', 'الإنجليزية'],
+
+    'enter_new_password': ['Enter new password', 'أدخل كلمة المرور الجديدة'],
+
+    'change_email': ['Change Email', 'تغيير البريد الإلكتروني'],
+    'enter_new_email': ['Enter new email', 'أدخل البريد الإلكتروني الجديد'],
+    'error_updating_email': [
+      'Error updating email',
+      'حدث خطأ أثناء تحديث البريد الإلكتروني',
+    ],
+    'name_updated': ['Name updated successfully', 'تم تحديث الاسم بنجاح'],
+
     //========= Slidbar===============
     'dashboard': ['Dashboard', 'لوحة التحكم'],
     'admin_profile': ['Admin Profile', 'الملف الشخصي'],

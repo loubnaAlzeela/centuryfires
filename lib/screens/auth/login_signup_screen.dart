@@ -503,15 +503,19 @@ class _LoginSignupScreenState extends State<LoginSignupScreen>
         .maybeSingle();
 
     if (existing != null) {
-      await supabase
-          .from('users')
-          .update({
-            'name': finalName,
-            'phone': finalPhone.isEmpty ? null : finalPhone,
-            'email': finalEmail.isEmpty ? null : finalEmail,
-            'is_active': true,
-          })
-          .eq('auth_id', authId);
+      final Map<String, dynamic> updateData = {
+        'phone': finalPhone.isEmpty ? null : finalPhone,
+        'email': finalEmail.isEmpty ? null : finalEmail,
+        'is_active': true,
+      };
+
+      // ✅ فقط حدّث الاسم إذا المستخدم كتبه فعلاً (مش القيمة الافتراضية)
+      final inputName = name.trim();
+      if (inputName.isNotEmpty && inputName != 'Customer') {
+        updateData['name'] = inputName;
+      }
+
+      await supabase.from('users').update(updateData).eq('auth_id', authId);
 
       debugPrint('ENSURE USER: updated existing user row ✅');
       return;
