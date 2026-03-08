@@ -106,7 +106,7 @@ class CartScreen extends StatelessWidget {
                   padding: const EdgeInsets.all(16),
                   child: SizedBox(
                     width: double.infinity,
-                    height: MediaQuery.of(context).size.height * 0.065,
+                    height: MediaQuery.of(context).size.height * 0.08,
                     child: AppButton(
                       enabled: lines.isNotEmpty,
                       onTap: () async {

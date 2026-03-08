@@ -4,7 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/meal_model.dart';
 import '../models/meal_size_model.dart';
 import '../models/addon_model.dart';
-
+import '../screens/cart/cart_screen.dart';
 import '../theme/app_colors.dart';
 import '../utils/cart_controller.dart';
 import '../utils/l.dart';
@@ -332,116 +332,182 @@ class _MealDetailsScreenState extends State<MealDetailsScreen>
                 ),
 
                 // ================= BOTTOM BAR =================
-                // ================= BOTTOM BAR =================
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: AppColors.card(context),
-                    borderRadius: const BorderRadius.vertical(
-                      top: Radius.circular(24),
-                    ),
-                  ),
-                  child: Row(
-                    children: [
-                      // 🔹 Quantity Selector (عرض ثابت)
-                      SizedBox(
-                        width: 120,
-                        height: 48,
-                        child: Container(
-                          decoration: BoxDecoration(
-                            color: AppColors.card(context),
-                            borderRadius: BorderRadius.circular(30),
-                            border: Border.all(
-                              color: AppColors.primary(context),
-                            ),
-                          ),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                            children: [
-                              IconButton(
+                ListenableBuilder(
+                  listenable: CartController.instance,
+                  builder: (context, _) {
+                    final hasItems = !CartController.instance.isEmpty;
+                    return Container(
+                      padding: EdgeInsets.fromLTRB(
+                        16,
+                        hasItems ? 12 : 16,
+                        16,
+                        16,
+                      ),
+                      decoration: BoxDecoration(
+                        color: AppColors.card(context),
+                        borderRadius: const BorderRadius.vertical(
+                          top: Radius.circular(24),
+                        ),
+                      ),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          // ✅ زر الذهاب للسلة — يظهر فقط إذا في عناصر
+                          if (hasItems) ...[
+                            SizedBox(
+                              width: double.infinity,
+                              height: 48,
+                              child: ElevatedButton.icon(
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: AppColors.bg(context),
+                                  foregroundColor: AppColors.primary(context),
+                                  side: BorderSide(
+                                    color: AppColors.primary(context),
+                                  ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(14),
+                                  ),
+                                ),
+                                icon: const Icon(
+                                  Icons.shopping_cart_outlined,
+                                  size: 20,
+                                ),
+                                label: Text(
+                                  '${L.t('go_to_cart')} (${CartController.instance.count})',
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
                                 onPressed: () {
-                                  if (quantity > 1) {
-                                    setState(() => quantity--);
-                                  }
+                                  Navigator.pop(
+                                    context,
+                                  ); // ارجعي للشاشة السابقة
+                                  // ثم افتحي السلة - عدّلي حسب مساري التنقل عندك
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (_) => const CartScreen(),
+                                    ),
+                                  );
                                 },
-                                icon: const Icon(Icons.remove),
-                                color: AppColors.primary(context),
                               ),
-                              Text(
-                                quantity.toString(),
-                                style: TextStyle(
-                                  color: AppColors.text(context),
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 16,
+                            ),
+                            const SizedBox(height: 10),
+                          ],
+
+                          // ================= ADD TO CART ROW =================
+                          Row(
+                            children: [
+                              // 🔹 Quantity Selector
+                              SizedBox(
+                                width: 120,
+                                height: 48,
+                                child: Container(
+                                  decoration: BoxDecoration(
+                                    color: AppColors.card(context),
+                                    borderRadius: BorderRadius.circular(30),
+                                    border: Border.all(
+                                      color: AppColors.primary(context),
+                                    ),
+                                  ),
+                                  child: Row(
+                                    mainAxisAlignment:
+                                        MainAxisAlignment.spaceEvenly,
+                                    children: [
+                                      IconButton(
+                                        onPressed: () {
+                                          if (quantity > 1) {
+                                            setState(() => quantity--);
+                                          }
+                                        },
+                                        icon: const Icon(Icons.remove),
+                                        color: AppColors.primary(context),
+                                      ),
+                                      Text(
+                                        quantity.toString(),
+                                        style: TextStyle(
+                                          color: AppColors.text(context),
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 16,
+                                        ),
+                                      ),
+                                      IconButton(
+                                        onPressed: () {
+                                          setState(() => quantity++);
+                                        },
+                                        icon: const Icon(Icons.add),
+                                        color: AppColors.primary(context),
+                                      ),
+                                    ],
+                                  ),
                                 ),
                               ),
-                              IconButton(
-                                onPressed: () {
-                                  setState(() => quantity++);
-                                },
-                                icon: const Icon(Icons.add),
-                                color: AppColors.primary(context),
+
+                              const SizedBox(width: 12),
+
+                              // 🔹 Add To Cart Button
+                              Expanded(
+                                child: SizedBox(
+                                  height: 56,
+                                  child: _AnimatedBottomCartButton(
+                                    totalPrice: totalPrice,
+                                    quantity: quantity,
+                                    onTap: () {
+                                      final selectedExtras = extraAddons
+                                          .where(
+                                            (a) =>
+                                                selectedExtraIds.contains(a.id),
+                                          )
+                                          .toList();
+
+                                      final selectedRemovals = removalAddons
+                                          .where(
+                                            (a) => selectedRemovalIds.contains(
+                                              a.id,
+                                            ),
+                                          )
+                                          .toList();
+
+                                      final allSelectedAddons = [
+                                        ...selectedExtras,
+                                        ...selectedRemovals,
+                                      ];
+
+                                      CartController.instance.addLine(
+                                        mealId: widget.meal.id,
+                                        name: widget.meal.displayName(
+                                          LanguageController.isArabic.value,
+                                        ),
+                                        price: totalPrice,
+                                        imageUrl: widget.meal.image,
+                                        mealSizeId: selectedSize?.id,
+                                        mealSizeName: selectedSize?.displayName(
+                                          LanguageController.isArabic.value,
+                                        ),
+                                        addonIds: allSelectedAddons
+                                            .map((a) => a.id)
+                                            .toList(),
+                                        addonNames: allSelectedAddons
+                                            .map(
+                                              (a) => a.displayName(
+                                                LanguageController
+                                                    .isArabic
+                                                    .value,
+                                              ),
+                                            )
+                                            .toList(),
+                                        quantity: quantity,
+                                      );
+                                    },
+                                  ),
+                                ),
                               ),
                             ],
                           ),
-                        ),
+                        ],
                       ),
-
-                      const SizedBox(width: 12),
-
-                      // 🔹 Add To Cart Button (ياخد باقي الشاشة)
-                      Expanded(
-                        child: SizedBox(
-                          height: 56,
-                          child: _AnimatedBottomCartButton(
-                            totalPrice: totalPrice,
-                            quantity: quantity,
-                            onTap: () {
-                              final selectedExtras = extraAddons
-                                  .where((a) => selectedExtraIds.contains(a.id))
-                                  .toList();
-
-                              final selectedRemovals = removalAddons
-                                  .where(
-                                    (a) => selectedRemovalIds.contains(a.id),
-                                  )
-                                  .toList();
-
-                              // نجمعهم كلهم
-                              final allSelectedAddons = [
-                                ...selectedExtras,
-                                ...selectedRemovals,
-                              ];
-
-                              CartController.instance.addLine(
-                                mealId: widget.meal.id,
-                                name: widget.meal.displayName(
-                                  LanguageController.isArabic.value,
-                                ),
-                                price: totalPrice,
-                                imageUrl: widget.meal.image,
-                                mealSizeId: selectedSize?.id,
-                                mealSizeName: selectedSize?.displayName(
-                                  LanguageController.isArabic.value,
-                                ),
-                                addonIds: allSelectedAddons
-                                    .map((a) => a.id)
-                                    .toList(),
-                                addonNames: allSelectedAddons
-                                    .map(
-                                      (a) => a.displayName(
-                                        LanguageController.isArabic.value,
-                                      ),
-                                    )
-                                    .toList(),
-                                quantity: quantity,
-                              );
-                            },
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
+                    );
+                  },
                 ),
               ],
             ),
@@ -549,7 +615,6 @@ class _AnimatedBottomCartButtonState extends State<_AnimatedBottomCartButton>
                       const SizedBox(width: 8),
 
                       Expanded(
-                        // 👈 أهم تعديل
                         child: Text(
                           '${(widget.totalPrice * widget.quantity).toStringAsFixed(2)} SAR',
                           textAlign: TextAlign.end,

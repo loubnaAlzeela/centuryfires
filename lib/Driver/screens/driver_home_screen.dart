@@ -333,8 +333,9 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
       perm = await Geolocator.requestPermission();
     }
     if (perm == LocationPermission.denied ||
-        perm == LocationPermission.deniedForever)
+        perm == LocationPermission.deniedForever) {
       return;
+    }
 
     currentPosition = await Geolocator.getCurrentPosition(
       desiredAccuracy: LocationAccuracy.high,

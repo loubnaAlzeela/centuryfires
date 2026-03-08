@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_application_1/screens/home_screen.dart';
 import '../../theme/app_colors.dart';
 import '../../utils/l.dart';
 
@@ -64,7 +65,11 @@ class OrderSuccessScreen extends StatelessWidget {
                     ),
                   ),
                   onPressed: () {
-                    Navigator.popUntil(context, (route) => route.isFirst);
+                    Navigator.pushAndRemoveUntil(
+                      context,
+                      MaterialPageRoute(builder: (_) => const HomeScreen()),
+                      (_) => false,
+                    );
                   },
                   child: Text(
                     L.t('order_success_back_home'),

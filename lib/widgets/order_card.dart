@@ -19,13 +19,15 @@ class OrderCard extends StatelessWidget {
     switch (order.status) {
       case 'delivered':
       case 'completed':
-        return AppColors.primary(context);
       case 'confirmed':
       case 'preparing':
       case 'out_for_delivery':
         return AppColors.primary(context);
       case 'cancelled':
+      case 'payment_failed':
         return AppColors.error(context);
+      case 'awaiting_payment':
+        return Colors.orange;
       default:
         return AppColors.textHint(context);
     }

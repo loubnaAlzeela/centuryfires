@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-
+import 'payment_webview_screen.dart';
+import 'card_input_screen.dart';
 import '../../theme/app_colors.dart';
 import '../../services/address_service.dart';
 import '../../services/coupon_service.dart';
@@ -31,10 +32,12 @@ class _CheckoutPageState extends State<CheckoutPage> {
   bool enableApplePay = false;
   bool enableGooglePay = false;
   bool enableCashOnDelivery = true;
+
   // ================= LOYALTY =================
   bool tierFreeDelivery = false;
   bool isLoadingTier = true;
-  // ================= COUPON (كما هو) =================
+
+  // ================= COUPON =================
   final TextEditingController couponCtrl = TextEditingController();
   bool couponApplied = false;
   double discount = 0;
@@ -48,26 +51,20 @@ class _CheckoutPageState extends State<CheckoutPage> {
 
   // ================= PRICING =================
   double get subtotal => CartController.instance.subtotal;
-  // أضف هذا المتغير داخل _CheckoutPageState
   double deliveryFee = 0;
   bool isLoadingSettings = true;
 
   double get effectiveDeliveryFee {
     if (orderType != 'delivery') return 0;
-    // 🔥 لو الفئة فيها توصيل مجاني
     if (tierFreeDelivery) return 0;
-
-    if (subtotal >= freeDeliveryMinimum && freeDeliveryMinimum > 0) {
-      return 0;
-    }
-
+    if (subtotal >= freeDeliveryMinimum && freeDeliveryMinimum > 0) return 0;
     return deliveryFee;
   }
 
   double get total =>
       subtotal + effectiveDeliveryFee - discount - bigOrderDiscount;
 
-  //=========== Big order Discount ====================
+  // ================= BIG ORDER =================
   double bigOrderDiscount = 0;
   bool isCheckingBigOrder = false;
 
@@ -81,7 +78,6 @@ class _CheckoutPageState extends State<CheckoutPage> {
     _checkBigOrderDiscount();
   }
 
-  /// 🔎 تحقق مبكر من السلة
   void _validateCartOnInit() {
     if (CartController.instance.isEmpty) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -96,58 +92,43 @@ class _CheckoutPageState extends State<CheckoutPage> {
   // ================= LOAD DEFAULT ADDRESS =================
   Future<void> _loadDefaultAddress() async {
     final supabase = Supabase.instance.client;
-
-    // ✅ إذا المستخدم غير مسجل دخول لا نظهر خطأ
     if (supabase.auth.currentUser == null) {
-      if (mounted) {
-        setState(() => isLoadingAddress = false);
-      }
+      if (mounted) setState(() => isLoadingAddress = false);
       return;
     }
-
     try {
       final addresses = await AddressService().getAddresses();
-      if (addresses.isNotEmpty) {
-        selectedAddress = addresses.first;
-      }
+      if (addresses.isNotEmpty) selectedAddress = addresses.first;
     } catch (_) {
-      // ❌ لا نعرض رسالة خطأ هنا
-      // لأن الخطأ غالباً سببه عدم تسجيل الدخول
     } finally {
-      if (mounted) {
-        setState(() => isLoadingAddress = false);
-      }
+      if (mounted) setState(() => isLoadingAddress = false);
     }
   }
 
-  //=====================================================
+  // ================= LOAD SETTINGS =================
   Future<void> _loadSettings() async {
     try {
       final supabase = Supabase.instance.client;
-
       final settings = await supabase
           .from('restaurant_settings')
           .select(
-            'delivery_fee, min_order_amount, free_delivery_minimum, auto_accept_orders,pay_visa_master,pay_apple_pay,pay_google_pay,pay_cash_on_delivery',
+            'delivery_fee, min_order_amount, free_delivery_minimum, auto_accept_orders,'
+            'pay_visa_master, pay_apple_pay, pay_google_pay, pay_cash_on_delivery',
           )
           .limit(1)
           .single();
 
-      final rawFee = settings['delivery_fee'];
-      final rawMin = settings['min_order_amount'];
-      final rawFree = settings['free_delivery_minimum'];
+      final parsedFee = (settings['delivery_fee'] is num)
+          ? (settings['delivery_fee'] as num).toDouble()
+          : double.tryParse('${settings['delivery_fee']}') ?? 0;
 
-      final parsedFee = rawFee is num
-          ? rawFee.toDouble()
-          : double.tryParse('$rawFee') ?? 0;
+      final parsedMin = (settings['min_order_amount'] is num)
+          ? (settings['min_order_amount'] as num).toDouble()
+          : double.tryParse('${settings['min_order_amount']}') ?? 0;
 
-      final parsedMin = rawMin is num
-          ? rawMin.toDouble()
-          : double.tryParse('$rawMin') ?? 0;
-
-      final parsedFree = rawFree is num
-          ? rawFree.toDouble()
-          : double.tryParse('$rawFree') ?? 0;
+      final parsedFree = (settings['free_delivery_minimum'] is num)
+          ? (settings['free_delivery_minimum'] as num).toDouble()
+          : double.tryParse('${settings['free_delivery_minimum']}') ?? 0;
 
       setState(() {
         deliveryFee = parsedFee;
@@ -167,22 +148,18 @@ class _CheckoutPageState extends State<CheckoutPage> {
         freeDeliveryMinimum = 0;
       });
     } finally {
-      if (mounted) {
-        setState(() => isLoadingSettings = false);
-      }
+      if (mounted) setState(() => isLoadingSettings = false);
     }
   }
 
-  //===========================================
+  // ================= LOAD USER TIER =================
   Future<void> _loadUserTier() async {
     final supabase = Supabase.instance.client;
     final authUser = supabase.auth.currentUser;
-
     if (authUser == null) {
       setState(() => isLoadingTier = false);
       return;
     }
-
     try {
       final userRow = await supabase
           .from('users')
@@ -190,27 +167,21 @@ class _CheckoutPageState extends State<CheckoutPage> {
           .eq('auth_id', authUser.id)
           .single();
 
-      final userId = userRow['id'];
-
       final loyalty = await supabase
           .from('user_loyalty')
           .select('tier_id, loyalty_tiers(free_delivery)')
-          .eq('user_id', userId)
+          .eq('user_id', userRow['id'])
           .maybeSingle();
 
       if (loyalty != null && loyalty['loyalty_tiers'] != null) {
-        final tier = loyalty['loyalty_tiers'];
-
         setState(() {
-          tierFreeDelivery = tier['free_delivery'] == true;
+          tierFreeDelivery = loyalty['loyalty_tiers']['free_delivery'] == true;
         });
       }
     } catch (e) {
-      debugPrint("TIER LOAD ERROR: $e");
+      debugPrint('TIER LOAD ERROR: $e');
     } finally {
-      if (mounted) {
-        setState(() => isLoadingTier = false);
-      }
+      if (mounted) setState(() => isLoadingTier = false);
     }
   }
 
@@ -228,42 +199,44 @@ class _CheckoutPageState extends State<CheckoutPage> {
     return parts.join(', ');
   }
 
-  // ================= COUPON (كما كان) =================
+  // ================= COUPON =================
   Future<void> applyCoupon() async {
-    if (couponCtrl.text.trim().isEmpty) return;
-    if (isApplyingCoupon) return;
-
+    if (couponCtrl.text.trim().isEmpty || isApplyingCoupon) return;
     setState(() => isApplyingCoupon = true);
-
     try {
       final result = await CouponService().applyCoupon(
         code: couponCtrl.text.trim(),
         subtotal: subtotal,
       );
-
       setState(() {
         discount = result;
         couponApplied = true;
       });
     } catch (e) {
       _showError(AppErrorType.general, customMessage: L.t('invalid_coupon'));
-
       setState(() {
         couponApplied = false;
         discount = 0;
       });
+    } finally {
+      if (mounted) setState(() => isApplyingCoupon = false);
     }
+  }
+
+  void removeCoupon() {
+    setState(() {
+      discount = 0;
+      couponApplied = false;
+      couponCtrl.clear();
+    });
   }
 
   // ================= BIG ORDER =================
   Future<void> _checkBigOrderDiscount() async {
     if (isCheckingBigOrder) return;
-
     setState(() => isCheckingBigOrder = true);
-
     try {
       final supabase = Supabase.instance.client;
-
       final promo = await supabase
           .from('promotions')
           .select()
@@ -275,45 +248,25 @@ class _CheckoutPageState extends State<CheckoutPage> {
 
       if (promo != null) {
         double calculated = 0;
-
         if (promo['discount_type'] == 'percentage') {
-          final percent = (promo['discount_value'] ?? 0).toDouble();
-          calculated = subtotal * (percent / 100);
+          calculated =
+              subtotal * ((promo['discount_value'] ?? 0).toDouble() / 100);
         } else if (promo['discount_type'] == 'fixed') {
           calculated = (promo['discount_value'] ?? 0).toDouble();
         }
-
-        // تطبيق max_discount إذا موجود
         if (promo['max_discount'] != null) {
           final max = (promo['max_discount'] ?? 0).toDouble();
-          if (max > 0 && calculated > max) {
-            calculated = max;
-          }
+          if (max > 0 && calculated > max) calculated = max;
         }
-
-        setState(() {
-          bigOrderDiscount = calculated;
-        });
+        setState(() => bigOrderDiscount = calculated);
       } else {
-        setState(() {
-          bigOrderDiscount = 0;
-        });
+        setState(() => bigOrderDiscount = 0);
       }
     } catch (e) {
       bigOrderDiscount = 0;
     } finally {
-      if (mounted) {
-        setState(() => isCheckingBigOrder = false);
-      }
+      if (mounted) setState(() => isCheckingBigOrder = false);
     }
-  }
-
-  void removeCoupon() {
-    setState(() {
-      discount = 0;
-      couponApplied = false;
-      couponCtrl.clear();
-    });
   }
 
   // ================= PLACE ORDER =================
@@ -335,16 +288,15 @@ class _CheckoutPageState extends State<CheckoutPage> {
     setState(() => isPlacingOrder = true);
 
     try {
-      // ================= USER =================
+      // ── جلب userId ──
       final userRow = await supabase
           .from('users')
           .select('id')
           .eq('auth_id', authUser.id)
           .single();
-
       final userId = userRow['id'];
 
-      // ================= ORDER STATUS (FAST VERSION) =================
+      // ── تحديد نوع الدفع ──
       final bool isOnlinePayment =
           paymentMethod == 'card' ||
           paymentMethod == 'apple' ||
@@ -354,7 +306,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
           ? 'awaiting_payment'
           : (autoAcceptOrders ? 'confirmed' : 'pending');
 
-      // ================= INSERT ORDER =================
+      // ── إدراج الطلب ──
       final order = await supabase
           .from('orders')
           .insert({
@@ -366,49 +318,144 @@ class _CheckoutPageState extends State<CheckoutPage> {
             'subtotal': subtotal,
             'discount': discount + bigOrderDiscount,
             'total': total,
-            'payment_method': paymentMethod,
+            'payment_method': isOnlinePayment
+                ? 'online'
+                : 'cash', // ← عدّلي هذا
+            'payment_provider': isOnlinePayment
+                ? paymentMethod
+                : null, // ← أضيفي هذا
           })
           .select()
           .single();
 
       final orderId = order['id'];
+      final orderNumber = order['order_number'] ?? orderId;
 
-      // ================= INSERT ITEMS =================
-      // ================= INSERT ITEMS (SAFE BATCH VERSION) =================
-      final itemsPayload = CartController.instance.lines.map((line) {
-        return {
-          'order_id': orderId,
-          'meal_id': line.mealId,
-          'meal_size_id': line.mealSizeId,
-          'quantity': line.quantity,
-          'unit_price': line.price,
-          'total_price': line.total,
-        };
-      }).toList();
+      // ── إدراج العناصر ──
+      final itemsPayload = CartController.instance.lines
+          .map(
+            (line) => {
+              'order_id': orderId,
+              'meal_id': line.mealId,
+              'meal_size_id': line.mealSizeId,
+              'quantity': line.quantity,
+              'unit_price': line.price,
+              'total_price': line.total,
+            },
+          )
+          .toList();
 
       await supabase.from('order_items').insert(itemsPayload);
 
-      await CartController.instance.clear();
+      // ── دفع إلكتروني (Moyasar) ──
+      if (isOnlinePayment) {
+        // ✅ إذا كارت، نفتح شاشة إدخال البيانات أولاً
+        Map<String, dynamic>? cardData;
+        if (paymentMethod == 'card') {
+          cardData = await Navigator.push<Map<String, dynamic>>(
+            context,
+            MaterialPageRoute(builder: (_) => const CardInputScreen()),
+          );
+          if (cardData == null) {
+            // المستخدم ضغط back
+            setState(() => isPlacingOrder = false);
+            return;
+          }
+        }
 
-      if (!mounted) return;
+        final String moyasarSourceType = paymentMethod == 'apple'
+            ? 'applepay'
+            : paymentMethod == 'google'
+            ? 'googlepay'
+            : 'creditcard';
 
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (_) => const OrderSuccessScreen()),
-      );
+        final paymentRes = await supabase.functions.invoke(
+          'create-payment',
+          body: {
+            'amount': (total * 100).toInt(),
+            'currency': 'SAR',
+            'description': 'Order #$orderNumber',
+            'callback_url':
+                'https://poetic-creponne-e07173.netlify.app?order_id=$orderId',
+            'source': {
+              'type': moyasarSourceType,
+              if (cardData != null) ...{
+                'name': cardData['name'],
+                'number': cardData['number'],
+                'month': cardData['month'],
+                'year': cardData['year'],
+                'cvc': cardData['cvc'],
+              },
+            },
+          },
+          headers: {
+            'Authorization':
+                'Bearer ${supabase.auth.currentSession!.accessToken}',
+          },
+        );
+
+        final paymentData = paymentRes.data as Map<String, dynamic>?;
+        debugPrint('MOYASAR RESPONSE: $paymentData');
+
+        if (paymentData == null) {
+          throw Exception('Empty response from payment function');
+        }
+
+        // استخرج transaction_url
+        final transactionUrl =
+            paymentData['source']?['transaction_url'] as String? ??
+            paymentData['url'] as String?;
+
+        if (transactionUrl == null || transactionUrl.isEmpty) {
+          throw Exception('Payment URL not found in response');
+        }
+
+        await CartController.instance.clear();
+        if (!mounted) return;
+
+        final result = await Navigator.push<String>(
+          context,
+          MaterialPageRoute(
+            builder: (_) => PaymentWebViewScreen(
+              paymentUrl: transactionUrl,
+              orderId: orderId.toString(),
+            ),
+          ),
+        );
+
+        if (!mounted) return;
+
+        if (result == 'failed') {
+          _showError(
+            AppErrorType.general,
+            customMessage: L.t('payment_failed'),
+          );
+        } else if (result == 'cancelled') {
+          _showError(
+            AppErrorType.general,
+            customMessage: L.t('payment_cancelled'),
+          );
+        }
+        // إذا result == null أو 'success' → OrderSuccessScreen تم فتحه من PaymentWebViewScreen
+      } else {
+        // ── دفع كاش ──
+        await CartController.instance.clear();
+        if (!mounted) return;
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => const OrderSuccessScreen()),
+        );
+      }
     } catch (e) {
       debugPrint('ORDER ERROR: $e');
-      _showError(AppErrorType.general);
+      _showError(AppErrorType.general, customMessage: 'Error: $e');
     } finally {
-      if (mounted) {
-        setState(() => isPlacingOrder = false);
-      }
+      if (mounted) setState(() => isPlacingOrder = false);
     }
   }
 
-  /// ✅ تحقق الطلب
+  // ================= VALIDATE =================
   bool _validateOrder() {
-    // Reset error state أولاً
     _minOrderError = false;
 
     if (CartController.instance.isEmpty || subtotal <= 0) {
@@ -424,14 +471,8 @@ class _CheckoutPageState extends State<CheckoutPage> {
         );
         return false;
       }
-
-      debugPrint('CHECK MIN ORDER: subtotal=$subtotal min=$minOrderAmount');
-
-      // ✅ شرط الحد الأدنى
       if (minOrderAmount > 0 && subtotal < minOrderAmount) {
-        setState(() {
-          _minOrderError = true;
-        });
+        setState(() => _minOrderError = true);
         return false;
       }
     }
@@ -441,6 +482,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
 
   // ================= ERROR =================
   void _showError(AppErrorType type, {String? customMessage}) {
+    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(customMessage ?? _errorMessage(type)),
@@ -471,6 +513,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
         ),
       );
     }
+
     return WillPopScope(
       onWillPop: () async {
         if (isPlacingOrder) {
@@ -482,7 +525,6 @@ class _CheckoutPageState extends State<CheckoutPage> {
         }
         return true;
       },
-
       child: Scaffold(
         backgroundColor: AppColors.bg(context),
         appBar: AppBar(
@@ -490,7 +532,6 @@ class _CheckoutPageState extends State<CheckoutPage> {
           backgroundColor: Colors.transparent,
           elevation: 0,
         ),
-
         body: SingleChildScrollView(
           padding: const EdgeInsets.all(16),
           child: Column(
@@ -512,17 +553,14 @@ class _CheckoutPageState extends State<CheckoutPage> {
               _sectionTitle(L.t('payment_method')),
               if (enableCashOnDelivery)
                 _paymentTile(L.t('cash'), L.t('cash_desc'), 'cash'),
-
               if (enableVisaMaster)
                 _paymentTile(
                   'Visa / MasterCard',
                   'Pay using your card',
                   'card',
                 ),
-
               if (enableApplePay)
                 _paymentTile('Apple Pay', 'Secure Apple payment', 'apple'),
-
               if (enableGooglePay)
                 _paymentTile('Google Pay', 'Secure Google payment', 'google'),
 
@@ -541,7 +579,9 @@ class _CheckoutPageState extends State<CheckoutPage> {
               if (orderType == 'delivery')
                 _summaryRow(
                   L.t('delivery_fee'),
-                  '${effectiveDeliveryFee.toStringAsFixed(2)} SAR',
+                  effectiveDeliveryFee == 0
+                      ? L.t('free')
+                      : '${effectiveDeliveryFee.toStringAsFixed(2)} SAR',
                 ),
               if (discount > 0)
                 _summaryRow(
@@ -561,6 +601,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
               ),
 
               const SizedBox(height: 24),
+
               if (_minOrderError)
                 Container(
                   margin: const EdgeInsets.only(bottom: 16),
@@ -586,6 +627,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
                     ],
                   ),
                 ),
+
               SizedBox(
                 width: double.infinity,
                 height: 56,
@@ -594,14 +636,24 @@ class _CheckoutPageState extends State<CheckoutPage> {
                     backgroundColor: AppColors.primary(context),
                     foregroundColor: Colors.black,
                   ),
-
                   onPressed: isPlacingOrder ? null : placeOrder,
-                  child: Text(
-                    isPlacingOrder ? L.t('placing_order') : L.t('place_order'),
-                    style: const TextStyle(fontSize: 18),
-                  ),
+                  child: isPlacingOrder
+                      ? SizedBox(
+                          width: 24,
+                          height: 24,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2.5,
+                            color: AppColors.textOnPrimary(context),
+                          ),
+                        )
+                      : Text(
+                          L.t('place_order'),
+                          style: const TextStyle(fontSize: 18),
+                        ),
                 ),
               ),
+
+              const SizedBox(height: 24),
             ],
           ),
         ),
@@ -609,7 +661,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
     );
   }
 
-  // ================= HELPERS =================
+  // ================= WIDGETS =================
   Widget _couponInput() {
     return Row(
       children: [
@@ -632,8 +684,23 @@ class _CheckoutPageState extends State<CheckoutPage> {
     return _cardWrapper(
       child: Padding(
         padding: const EdgeInsets.all(12),
-        child: Text(
-          '${L.t('coupon_applied')} (-${discount.toStringAsFixed(2)} SAR)',
+        child: Row(
+          children: [
+            Expanded(
+              child: Text(
+                '${L.t('coupon_applied')} (-${discount.toStringAsFixed(2)} SAR)',
+                style: TextStyle(color: AppColors.text(context)),
+              ),
+            ),
+            IconButton(
+              icon: Icon(
+                Icons.close,
+                color: AppColors.error(context),
+                size: 18,
+              ),
+              onPressed: removeCoupon,
+            ),
+          ],
         ),
       ),
     );
@@ -644,7 +711,11 @@ class _CheckoutPageState extends State<CheckoutPage> {
       padding: const EdgeInsets.only(bottom: 8),
       child: Text(
         text,
-        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+        style: TextStyle(
+          fontSize: 16,
+          fontWeight: FontWeight.bold,
+          color: AppColors.text(context),
+        ),
       ),
     );
   }
@@ -655,12 +726,14 @@ class _CheckoutPageState extends State<CheckoutPage> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(label),
+          Text(label, style: TextStyle(color: AppColors.text(context))),
           Text(
             value,
             style: TextStyle(
               fontWeight: isTotal ? FontWeight.bold : null,
-              color: isTotal ? AppColors.primary(context) : null,
+              color: isTotal
+                  ? AppColors.primary(context)
+                  : AppColors.text(context),
             ),
           ),
         ],
@@ -675,7 +748,9 @@ class _CheckoutPageState extends State<CheckoutPage> {
         color: AppColors.card(context),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: selected ? AppColors.primary(context) : Colors.grey.shade800,
+          color: selected
+              ? AppColors.primary(context)
+              : AppColors.textGrey(context).withOpacity(0.2),
         ),
       ),
       child: child,
@@ -687,8 +762,11 @@ class _CheckoutPageState extends State<CheckoutPage> {
     return _cardWrapper(
       selected: selected,
       child: ListTile(
-        title: Text(title),
-        subtitle: Text(subtitle, style: TextStyle(color: Colors.grey.shade500)),
+        title: Text(title, style: TextStyle(color: AppColors.text(context))),
+        subtitle: Text(
+          subtitle,
+          style: TextStyle(color: AppColors.textGrey(context)),
+        ),
         trailing: selected
             ? Icon(Icons.check_circle, color: AppColors.primary(context))
             : null,
@@ -702,8 +780,11 @@ class _CheckoutPageState extends State<CheckoutPage> {
     return _cardWrapper(
       selected: selected,
       child: ListTile(
-        title: Text(title),
-        subtitle: Text(subtitle, style: TextStyle(color: Colors.grey.shade500)),
+        title: Text(title, style: TextStyle(color: AppColors.text(context))),
+        subtitle: Text(
+          subtitle,
+          style: TextStyle(color: AppColors.textGrey(context)),
+        ),
         trailing: selected
             ? Icon(Icons.check_circle, color: AppColors.primary(context))
             : null,
@@ -714,17 +795,21 @@ class _CheckoutPageState extends State<CheckoutPage> {
 
   Widget _addressCard() {
     if (isLoadingAddress) {
-      return const CircularProgressIndicator();
+      return Center(
+        child: CircularProgressIndicator(color: AppColors.primary(context)),
+      );
     }
-
     return _cardWrapper(
       child: ListTile(
-        title: Text(selectedAddress?['title'] ?? L.t('no_address')),
+        title: Text(
+          selectedAddress?['title'] ?? L.t('no_address'),
+          style: TextStyle(color: AppColors.text(context)),
+        ),
         subtitle: Text(
           selectedAddress != null
               ? buildFullAddress(selectedAddress!)
               : L.t('select_address'),
-          style: TextStyle(color: Colors.grey.shade500),
+          style: TextStyle(color: AppColors.textGrey(context)),
         ),
         trailing: TextButton(
           onPressed: () async {
@@ -732,11 +817,12 @@ class _CheckoutPageState extends State<CheckoutPage> {
               context,
               MaterialPageRoute(builder: (_) => const SavedAddressesScreen()),
             );
-            if (result != null) {
-              setState(() => selectedAddress = result);
-            }
+            if (result != null) setState(() => selectedAddress = result);
           },
-          child: Text(L.t('change')),
+          child: Text(
+            L.t('change'),
+            style: TextStyle(color: AppColors.primary(context)),
+          ),
         ),
       ),
     );
