@@ -18,11 +18,12 @@ class _AdminRatingsScreenState extends State<AdminRatingsScreen>
   bool _loading = true;
   List<Map<String, dynamic>> _reviews = [];
   Map<String, dynamic> _stats = {};
+  bool _sortHighest = true;
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 1, vsync: this);
+    _tabController = TabController(length: 4, vsync: this);
     _load();
   }
 
@@ -65,29 +66,31 @@ class _AdminRatingsScreenState extends State<AdminRatingsScreen>
                       color: AppColors.primary(context),
                     ),
                   )
-                : Column(
-                    children: [
-                      Expanded(
-                        child: SingleChildScrollView(
-                          padding: const EdgeInsets.all(16),
+                : NestedScrollView(
+                    headerSliverBuilder: (context, _) => [
+                      SliverToBoxAdapter(
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
                           child: Column(
                             children: [
                               _buildStats(),
                               const SizedBox(height: 20),
                               _buildTabs(),
                               const SizedBox(height: 16),
-                              SizedBox(
-                                height: 600,
-                                child: TabBarView(
-                                  controller: _tabController,
-                                  children: [_buildFoodList()],
-                                ),
-                              ),
                             ],
                           ),
                         ),
                       ),
                     ],
+                    body: TabBarView(
+                      controller: _tabController,
+                      children: [
+                        _buildFoodList(filter: 'all'),
+                        _buildFoodList(filter: 'unanswered'),
+                        _buildFoodList(filter: 'answered'),
+                        _buildFoodList(filter: 'negative'),
+                      ],
+                    ),
                   ),
           ),
         );
@@ -204,6 +207,15 @@ class _AdminRatingsScreenState extends State<AdminRatingsScreen>
   // ===========================
 
   Widget _buildTabs() {
+    final allCount = _reviews.length;
+    final unansweredCount = _reviews
+        .where((r) => (r['admin_reply'] ?? '').toString().trim().isEmpty)
+        .length;
+    final answeredCount = _reviews
+        .where((r) => (r['admin_reply'] ?? '').toString().trim().isNotEmpty)
+        .length;
+    final negativeCount = _reviews.where((r) => (r['rating'] ?? 0) <= 3).length;
+
     return Container(
       decoration: BoxDecoration(
         color: AppColors.card(context),
@@ -211,12 +223,19 @@ class _AdminRatingsScreenState extends State<AdminRatingsScreen>
       ),
       child: TabBar(
         controller: _tabController,
+        isScrollable: true,
+        tabAlignment: TabAlignment.start,
         labelColor: AppColors.primary(context),
         unselectedLabelColor: AppColors.textGrey(context),
         indicator: UnderlineTabIndicator(
           borderSide: BorderSide(color: AppColors.primary(context), width: 3),
         ),
-        tabs: [Tab(text: '${L.t('food_ratings')} (${_reviews.length})')],
+        tabs: [
+          Tab(text: '${L.t('all_reviews')} ($allCount)'),
+          Tab(text: '${L.t('unanswered')} ($unansweredCount)'),
+          Tab(text: '${L.t('answered')} ($answeredCount)'),
+          Tab(text: '${L.t('negative_reviews')} ($negativeCount)'),
+        ],
       ),
     );
   }
@@ -225,8 +244,30 @@ class _AdminRatingsScreenState extends State<AdminRatingsScreen>
   // FOOD LIST WITH ANIMATION + BAD HIGHLIGHT
   // ===========================
 
-  Widget _buildFoodList() {
-    if (_reviews.isEmpty) {
+  Widget _buildFoodList({required String filter}) {
+    List<Map<String, dynamic>> filtered = List.from(_reviews);
+
+    if (filter == 'unanswered') {
+      filtered = filtered
+          .where((r) => (r['admin_reply'] ?? '').toString().trim().isEmpty)
+          .toList();
+    } else if (filter == 'answered') {
+      filtered = filtered
+          .where((r) => (r['admin_reply'] ?? '').toString().trim().isNotEmpty)
+          .toList();
+    } else if (filter == 'negative') {
+      filtered = filtered.where((r) => (r['rating'] ?? 0) <= 3).toList();
+    }
+
+    if (filter == 'all') {
+      filtered.sort((a, b) {
+        final r1 = (a['rating'] ?? 0) as num;
+        final r2 = (b['rating'] ?? 0) as num;
+        return _sortHighest ? r2.compareTo(r1) : r1.compareTo(r2);
+      });
+    }
+
+    if (filtered.isEmpty) {
       return Center(
         child: Text(
           L.t('no_meals_rate'),
@@ -235,16 +276,48 @@ class _AdminRatingsScreenState extends State<AdminRatingsScreen>
       );
     }
 
+    final bool showSort = filter == 'all';
+    final int itemCount = showSort ? filtered.length + 1 : filtered.length;
+
     return ListView.builder(
-      itemCount: _reviews.length,
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 120),
+      itemCount: itemCount,
       itemBuilder: (context, index) {
-        final review = _reviews[index];
+        if (showSort && index == 0) {
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                TextButton.icon(
+                  onPressed: () {
+                    setState(() {
+                      _sortHighest = !_sortHighest;
+                    });
+                  },
+                  icon: Icon(
+                    _sortHighest ? Icons.arrow_downward : Icons.arrow_upward,
+                    size: 18,
+                    color: AppColors.primary(context),
+                  ),
+                  label: Text(
+                    _sortHighest ? L.t('sort_highest') : L.t('sort_lowest'),
+                    style: TextStyle(color: AppColors.primary(context)),
+                  ),
+                ),
+              ],
+            ),
+          );
+        }
+
+        final reviewIndex = showSort ? index - 1 : index;
+        final review = filtered[reviewIndex];
         final isArabic = LanguageController.isArabic.value;
         final mealName = isArabic ? review['name_ar'] : review['name_en'];
 
         return TweenAnimationBuilder<double>(
           tween: Tween(begin: 0, end: 1),
-          duration: Duration(milliseconds: 350 + (index * 80)),
+          duration: Duration(milliseconds: 350 + (reviewIndex * 80)),
           curve: Curves.easeOut,
           builder: (context, value, child) {
             return Opacity(

@@ -4,9 +4,13 @@ import '../../theme/app_colors.dart';
 import '../../widgets/order_tracking_timeline.dart';
 import '../../services/loyalty_service.dart';
 import '../../utils/l.dart';
+import '../../utils/cart_controller.dart';
+import '../../utils/language_controller.dart';
+import '../cart/cart_screen.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 class OrderDetailsScreen extends StatefulWidget {
-  final OrderViewModel order; // 👈 صار OrderViewModel
+  final OrderViewModel order;
 
   const OrderDetailsScreen({super.key, required this.order});
 
@@ -181,6 +185,7 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
 
               final mealName =
                   item['meal_name_en'] ?? item['meal_name_ar'] ?? '';
+              final String? itemNotes = item['notes']?.toString();
 
               return Container(
                 margin: const EdgeInsets.only(bottom: 14),
@@ -222,6 +227,32 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
                         fontSize: 12,
                       ),
                     ),
+
+                    if (itemNotes != null && itemNotes.isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 8),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Icon(
+                              Icons.edit_note,
+                              size: 16,
+                              color: AppColors.primary(context),
+                            ),
+                            const SizedBox(width: 4),
+                            Expanded(
+                              child: Text(
+                                itemNotes,
+                                style: TextStyle(
+                                  color: AppColors.text(context),
+                                  fontSize: 13,
+                                  fontStyle: FontStyle.italic,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
                   ],
                 ),
               );
@@ -249,10 +280,122 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
                 ],
               ),
             ),
+
+            const SizedBox(height: 24),
+
+            // ================= REORDER BUTTON =================
+            SizedBox(
+              width: double.infinity,
+              height: 50,
+              child: ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primary(context),
+                  foregroundColor: AppColors.textOnPrimary(context),
+                ),
+                icon: const Icon(Icons.refresh),
+                label: Text(
+                  L.t('reorder', {'key': 'Reorder'}),
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                  ),
+                ),
+                onPressed: _isReordering ? null : _handleReorder,
+              ),
+            ),
+            const SizedBox(height: 16),
           ],
         ),
       ),
     );
+  }
+
+  bool _isReordering = false;
+
+  Future<void> _handleReorder() async {
+    setState(() => _isReordering = true);
+
+    try {
+      final supabase = Supabase.instance.client;
+      // Fetch order items with their corresponding meal names/images
+      final List<dynamic> items = await supabase
+          .from('order_items')
+          .select('''
+            meal_id,
+            quantity,
+            unit_price,
+            notes,
+            meals (
+              name_en,
+              name_ar,
+              image_url
+            )
+          ''')
+          .eq('order_id', widget.order.id);
+
+      if (items.isEmpty) return;
+
+      final isAr = LanguageController.ar;
+
+      // Add each item to the cart
+      for (final it in items) {
+        final mealsInfo = it['meals'];
+        if (mealsInfo == null) continue;
+
+        final nameEn = mealsInfo['name_en'] ?? '';
+        final nameAr = mealsInfo['name_ar'] ?? '';
+        final name = isAr && nameAr.toString().isNotEmpty ? nameAr : nameEn;
+
+        // Ensure we retrieve an image URL if possible
+        String? imgUrlStr = mealsInfo['image_url']?.toString();
+        // Validation for the image URL
+        if (imgUrlStr != null &&
+            (!imgUrlStr.startsWith('http') && !imgUrlStr.startsWith('https'))) {
+          imgUrlStr = null;
+        }
+
+        CartController.instance.addLine(
+          mealId: it['meal_id']?.toString() ?? '',
+          name: name.toString(),
+          price: (it['unit_price'] as num?)?.toDouble() ?? 0.0,
+          imageUrl: imgUrlStr,
+          addonIds:
+              [], // Advanced: To support fetching addons properly, we would query `order_item_addons`
+          addonNames: [],
+          quantity: (it['quantity'] as num?)?.toInt() ?? 1,
+          notes: it['notes']?.toString(),
+        );
+      }
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              L.t('items_added_to_cart', {'key': 'Items added to cart!'}),
+            ),
+            backgroundColor: Colors.green,
+          ),
+        );
+        Navigator.pop(context);
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const CartScreen()),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(L.t('err_general')),
+            backgroundColor: AppColors.error(context),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isReordering = false);
+      }
+    }
   }
 
   Widget _priceRow(

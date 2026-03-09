@@ -35,8 +35,10 @@ class _MealDetailsScreenState extends State<MealDetailsScreen>
 
   Set<String> selectedExtraIds = {};
   Set<String> selectedRemovalIds = {};
-
   bool isLoadingAddons = true;
+
+  // ================= NOTES =================
+  final TextEditingController _notesCtrl = TextEditingController();
 
   // ================= PRICE =================
   double get totalPrice {
@@ -46,7 +48,6 @@ class _MealDetailsScreenState extends State<MealDetailsScreen>
       price += selectedSize!.price.toDouble();
     }
 
-    // السعر فقط للإضافات extra
     for (final addon in extraAddons) {
       if (selectedExtraIds.contains(addon.id)) {
         price += addon.price.toDouble();
@@ -61,6 +62,12 @@ class _MealDetailsScreenState extends State<MealDetailsScreen>
     super.initState();
     _loadMealSizes();
     _loadMealAddons();
+  }
+
+  @override
+  void dispose() {
+    _notesCtrl.dispose();
+    super.dispose();
   }
 
   // ================= LOAD SIZES =================
@@ -122,9 +129,7 @@ class _MealDetailsScreenState extends State<MealDetailsScreen>
       setState(() {
         mealAddons = list;
         extraAddons = list.where((a) => a.type == 'extra').toList();
-
         removalAddons = list.where((a) => a.type == 'removal').toList();
-
         isLoadingAddons = false;
       });
     } catch (_) {
@@ -325,6 +330,58 @@ class _MealDetailsScreenState extends State<MealDetailsScreen>
                           }),
                         ],
 
+                        // ================= NOTES =================
+                        const SizedBox(height: 28),
+                        Text(
+                          L.t('meal_notes', {
+                            'key': 'Meal Notes',
+                          }), // fallback or translation
+                          style: TextStyle(
+                            color: AppColors.text(context),
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        TextField(
+                          controller: _notesCtrl,
+                          maxLength: 150,
+                          maxLines: 3,
+                          style: TextStyle(color: AppColors.text(context)),
+                          decoration: InputDecoration(
+                            hintText: L.t('optional_note_hint', {
+                              'key': 'Any special requests? (e.g. no onions)',
+                            }),
+                            hintStyle: TextStyle(
+                              color: AppColors.textGrey(context),
+                            ),
+                            filled: true,
+                            fillColor: AppColors.bg(context),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: BorderSide(
+                                color: AppColors.textGrey(
+                                  context,
+                                ).withValues(alpha: 0.3),
+                              ),
+                            ),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: BorderSide(
+                                color: AppColors.textGrey(
+                                  context,
+                                ).withValues(alpha: 0.3),
+                              ),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: BorderSide(
+                                color: AppColors.primary(context),
+                              ),
+                            ),
+                          ),
+                        ),
+
                         const SizedBox(height: 120),
                       ],
                     ),
@@ -379,10 +436,7 @@ class _MealDetailsScreenState extends State<MealDetailsScreen>
                                   ),
                                 ),
                                 onPressed: () {
-                                  Navigator.pop(
-                                    context,
-                                  ); // ارجعي للشاشة السابقة
-                                  // ثم افتحي السلة - عدّلي حسب مساري التنقل عندك
+                                  Navigator.pop(context);
                                   Navigator.push(
                                     context,
                                     MaterialPageRoute(
@@ -445,13 +499,14 @@ class _MealDetailsScreenState extends State<MealDetailsScreen>
 
                               const SizedBox(width: 12),
 
-                              // 🔹 Add To Cart Button
+                              // 🔹 Add To Cart Button مع Badge
                               Expanded(
                                 child: SizedBox(
                                   height: 56,
                                   child: _AnimatedBottomCartButton(
                                     totalPrice: totalPrice,
                                     quantity: quantity,
+                                    mealId: widget.meal.id,
                                     onTap: () {
                                       final selectedExtras = extraAddons
                                           .where(
@@ -497,6 +552,9 @@ class _MealDetailsScreenState extends State<MealDetailsScreen>
                                             )
                                             .toList(),
                                         quantity: quantity,
+                                        notes: _notesCtrl.text.trim().isNotEmpty
+                                            ? _notesCtrl.text.trim()
+                                            : null,
                                       );
                                     },
                                   ),
@@ -518,15 +576,18 @@ class _MealDetailsScreenState extends State<MealDetailsScreen>
   }
 }
 
+// ================= ANIMATED CART BUTTON =================
 class _AnimatedBottomCartButton extends StatefulWidget {
   final VoidCallback onTap;
   final double totalPrice;
   final int quantity;
+  final String mealId;
 
   const _AnimatedBottomCartButton({
     required this.onTap,
     required this.totalPrice,
     required this.quantity,
+    required this.mealId,
   });
 
   @override
@@ -589,76 +650,119 @@ class _AnimatedBottomCartButtonState extends State<_AnimatedBottomCartButton>
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: _handleTap,
-      child: Container(
-        height: 56,
-        decoration: BoxDecoration(
-          color: AppColors.primary(context),
-          borderRadius: BorderRadius.circular(18),
-        ),
-        child: Center(
-          child: AnimatedBuilder(
-            animation: _controller,
-            builder: (_, __) {
-              if (!_isAnimating) {
-                return Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20),
-                  child: Row(
-                    children: [
-                      Icon(
-                        Icons.shopping_cart,
-                        color: AppColors.textOnPrimary(context),
-                        size: 20,
-                      ),
+    return ListenableBuilder(
+      listenable: CartController.instance,
+      builder: (context, _) {
+        // ✅ عدد هذه الوجبة تحديداً في السلة
+        final mealCount = CartController.instance.lines
+            .where((l) => l.mealId == widget.mealId)
+            .fold(0, (sum, l) => sum + l.quantity);
 
-                      const SizedBox(width: 8),
-
-                      Expanded(
-                        child: Text(
-                          '${(widget.totalPrice * widget.quantity).toStringAsFixed(2)} SAR',
-                          textAlign: TextAlign.end,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            color: AppColors.textOnPrimary(context),
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
+        return Stack(
+          clipBehavior: Clip.none,
+          children: [
+            // ── الزر الرئيسي ──
+            GestureDetector(
+              onTap: _handleTap,
+              child: Container(
+                height: 56,
+                decoration: BoxDecoration(
+                  color: AppColors.primary(context),
+                  borderRadius: BorderRadius.circular(18),
+                ),
+                child: Center(
+                  child: AnimatedBuilder(
+                    animation: _controller,
+                    builder: (_, __) {
+                      if (!_isAnimating) {
+                        return Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 20),
+                          child: Row(
+                            children: [
+                              Icon(
+                                Icons.shopping_cart,
+                                color: AppColors.textOnPrimary(context),
+                                size: 20,
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  '${(widget.totalPrice * widget.quantity).toStringAsFixed(2)} SAR',
+                                  textAlign: TextAlign.end,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    color: AppColors.textOnPrimary(context),
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
-                        ),
-                      ),
-                    ],
-                  ),
-                );
-              }
+                        );
+                      }
 
-              return Stack(
-                alignment: Alignment.center,
-                children: [
-                  Transform.scale(
-                    scale: _bounceAnimation.value,
-                    child: Icon(
-                      Icons.shopping_cart,
-                      color: AppColors.textOnPrimary(context),
-                      size: 26,
+                      return Stack(
+                        alignment: Alignment.center,
+                        children: [
+                          Transform.scale(
+                            scale: _bounceAnimation.value,
+                            child: Icon(
+                              Icons.shopping_cart,
+                              color: AppColors.textOnPrimary(context),
+                              size: 26,
+                            ),
+                          ),
+                          Positioned(
+                            top: _dropAnimation.value,
+                            child: Container(
+                              width: 12,
+                              height: 12,
+                              decoration: BoxDecoration(
+                                color: AppColors.textOnPrimary(context),
+                                shape: BoxShape.circle,
+                              ),
+                            ),
+                          ),
+                        ],
+                      );
+                    },
+                  ),
+                ),
+              ),
+            ),
+
+            // ── Badge عدد هذه الوجبة ──
+            if (mealCount > 0)
+              Positioned(
+                top: -8,
+                right: -8,
+                child: Container(
+                  width: 24,
+                  height: 24,
+                  decoration: BoxDecoration(
+                    color: Colors.black,
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: AppColors.primary(context),
+                      width: 2,
                     ),
                   ),
-                  Positioned(
-                    top: _dropAnimation.value,
-                    child: Container(
-                      width: 12,
-                      height: 12,
-                      decoration: BoxDecoration(
-                        color: AppColors.textOnPrimary(context),
-                        shape: BoxShape.circle,
+                  child: Center(
+                    child: Text(
+                      '$mealCount',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
                       ),
                     ),
                   ),
-                ],
-              );
-            },
-          ),
-        ),
-      ),
+                ),
+              ),
+          ],
+        );
+      },
     );
   }
 }

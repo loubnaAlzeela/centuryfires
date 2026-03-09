@@ -298,7 +298,7 @@ class L {
       'Please select delivery address',
       'يرجى اختيار عنوان التوصيل',
     ],
-
+    'order_items': ['Order Items', 'عناصر الطلب'],
     'order': ['Order', 'الطلب'],
     'items': ['Items', 'الطلبات'],
 
@@ -348,7 +348,17 @@ class L {
     //rate_meals
     'rate_meals': ['Rate Your Meals', 'قيّم وجباتك'],
     'optional_comment': ['Optional comment', 'تعليق اختياري'],
+    'meal_notes': ['Meal Notes', 'ملاحظات الوجبة'],
+    'optional_note_hint': [
+      'Any special requests? (e.g. no onions)',
+      'هل لديك طلبات خاصة؟ (مثلاً: بدون بصل)',
+    ],
     'submit': ['Submit', 'إرسال'],
+    'reorder': ['Reorder', 'إعادة الطلب'],
+    'items_added_to_cart': [
+      'Items added to cart!',
+      'تمت إضافة عناصر الطلب إلى السلة!',
+    ],
     'thanks_feedback': ['Thanks for your feedback 🙌', 'شكرًا لملاحظاتك 🙌'],
     'no_meals_rate': ['No meals to rate yet', 'لا توجد وجبات للتقييم بعد'],
     'no_meals_desc': [
@@ -673,6 +683,13 @@ class L {
     'write_reply': ['Write Reply', 'اكتب رد'],
     'enter_reply': ['Enter reply...', 'أدخل الرد...'],
 
+    'all_reviews': ['All Reviews', 'الكل'],
+    'unanswered': ['Unanswered', 'لم يتم الرد'],
+    'answered': ['Answered', 'تم الرد'],
+    'negative_reviews': ['Negative', 'سلبية'],
+    'sort_highest': ['Highest Rating', 'الأعلى تقييماً'],
+    'sort_lowest': ['Lowest Rating', 'الأقل تقييماً'],
+
     //=========== Admin Loyalty ============
     'points_settings': ['Points Settings', 'إعدادات النقاط'],
     'currency_step': ['Currency Step', 'قيمة الخطوة'],
@@ -755,7 +772,10 @@ class L {
       'This fee will be added to every delivery order',
       'سيتم إضافة هذه الرسوم على كل طلب توصيل',
     ],
-
+    'promoted_success': ['Promoted successfully', 'تمت الترقية بنجاح'],
+    'select_user': ['Select User', 'تحديد مستخدم'],
+    'no_users_available': ['No users available', 'لا يوجد مستخدمون متاحون'],
+    'make_driver': ['Make Driver', 'تحويل إلى سائق'],
     'delivery_rules_explained': [
       'Minimum order required for delivery and amount for free delivery',
       'الحد الأدنى للطلب للتوصيل والمبلغ الذي يصبح بعده التوصيل مجاني',

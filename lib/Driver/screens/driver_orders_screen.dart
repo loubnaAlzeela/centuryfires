@@ -136,9 +136,14 @@ class _DriverOrdersScreenState extends State<DriverOrdersScreen> {
       return;
     }
 
-    currentPosition = await Geolocator.getCurrentPosition(
-      desiredAccuracy: LocationAccuracy.high,
-    );
+    try {
+      currentPosition = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.high,
+        timeLimit: const Duration(seconds: 4),
+      );
+    } catch (e) {
+      currentPosition = await Geolocator.getLastKnownPosition();
+    }
   }
 
   // ================= FILTER =================

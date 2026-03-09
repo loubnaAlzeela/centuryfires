@@ -21,6 +21,7 @@ class CartLine {
   final List<String> addonNames;
 
   int quantity;
+  final String? notes;
 
   CartLine({
     required this.id,
@@ -33,6 +34,7 @@ class CartLine {
     required this.addonIds,
     required this.addonNames,
     this.quantity = 1,
+    this.notes,
   });
 
   double get total => price * quantity;
@@ -76,6 +78,7 @@ class CartLine {
       addonIds: List<String>.from(json['addonIds'] ?? const []),
       addonNames: List<String>.from(json['addonNames'] ?? const []),
       quantity: safeQuantity,
+      notes: json['notes']?.toString(),
     );
   }
 
@@ -91,6 +94,7 @@ class CartLine {
       'addonIds': addonIds,
       'addonNames': addonNames,
       'quantity': quantity,
+      'notes': notes,
     };
   }
 }
@@ -191,9 +195,16 @@ class CartController extends ChangeNotifier {
     required String mealId,
     String? mealSizeId,
     required List<String> addonIds,
+    String? notes,
   }) {
     final sortedAddons = [...addonIds]..sort();
-    return [mealId, mealSizeId ?? '∅', sortedAddons.join('§')].join('¦');
+    final notePart = (notes ?? '').trim().toLowerCase();
+    return [
+      mealId,
+      mealSizeId ?? '∅',
+      sortedAddons.join('§'),
+      notePart,
+    ].join('¦');
   }
 
   /// =======================
@@ -209,6 +220,7 @@ class CartController extends ChangeNotifier {
     required List<String> addonIds,
     required List<String> addonNames,
     int quantity = 1,
+    String? notes,
   }) {
     if (mealId.isEmpty || !price.isFinite || price < 0) return;
 
@@ -218,6 +230,7 @@ class CartController extends ChangeNotifier {
       mealId: mealId,
       mealSizeId: mealSizeId,
       addonIds: addonIds,
+      notes: notes,
     );
 
     if (_lines.containsKey(id)) {
@@ -239,6 +252,7 @@ class CartController extends ChangeNotifier {
         quantity: safeQuantity > maxQuantityPerItem
             ? maxQuantityPerItem
             : safeQuantity,
+        notes: notes,
       );
     }
 

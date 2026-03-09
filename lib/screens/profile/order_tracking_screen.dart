@@ -336,27 +336,60 @@ class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
 
                       ...o.orderItems.map((item) {
                         final qty = item['quantity'] ?? 0;
-                        final name = item['meal_name_en'] ?? '';
+                        final name =
+                            item['meal_name_en'] ?? item['meal_name_ar'] ?? '';
                         final price = (item['total_price'] ?? 0).toString();
+                        final String? notes = item['notes']?.toString();
 
                         return Padding(
                           padding: const EdgeInsets.only(bottom: 8),
-                          child: Row(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Expanded(
-                                child: Text(
-                                  '$qty x $name',
-                                  style: TextStyle(color: text),
-                                  overflow: TextOverflow.ellipsis,
-                                ),
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: Text(
+                                      '$qty x $name',
+                                      style: TextStyle(color: text),
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                  Text(
+                                    price,
+                                    style: TextStyle(
+                                      color: text,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ],
                               ),
-                              Text(
-                                price,
-                                style: TextStyle(
-                                  color: text,
-                                  fontWeight: FontWeight.w600,
+                              if (notes != null && notes.isNotEmpty)
+                                Padding(
+                                  padding: const EdgeInsets.only(top: 4),
+                                  child: Row(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Icon(
+                                        Icons.edit_note,
+                                        size: 14,
+                                        color: primary,
+                                      ),
+                                      const SizedBox(width: 4),
+                                      Expanded(
+                                        child: Text(
+                                          notes,
+                                          style: TextStyle(
+                                            color: text,
+                                            fontSize: 12,
+                                            fontStyle: FontStyle.italic,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
                                 ),
-                              ),
                             ],
                           ),
                         );

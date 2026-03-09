@@ -341,6 +341,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
               'quantity': line.quantity,
               'unit_price': line.price,
               'total_price': line.total,
+              'notes': line.notes,
             },
           )
           .toList();

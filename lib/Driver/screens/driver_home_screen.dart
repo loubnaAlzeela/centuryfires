@@ -337,9 +337,17 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
       return;
     }
 
-    currentPosition = await Geolocator.getCurrentPosition(
-      desiredAccuracy: LocationAccuracy.high,
-    );
+    try {
+      // ✅ FIX: إضافة مهلة زمنية (Timeout) لتجنب التعليق اللانهائي عند تسجيل الدخول
+      currentPosition = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.high,
+        timeLimit: const Duration(seconds: 4),
+      );
+    } catch (e) {
+      // في حال فشل أو تأخر الحصول على الموقع الحالي، نجلب آخر موقع معروف
+      currentPosition = await Geolocator.getLastKnownPosition();
+    }
+
     if (mounted) setState(() {});
   }
 

@@ -6,6 +6,7 @@ import '../utils/meal_list_type.dart';
 import '../screens/meal_details_screen.dart';
 import '../utils/l.dart';
 import '../utils/language_controller.dart';
+import '../utils/cart_controller.dart';
 
 class MealHorizontalListFromData extends StatelessWidget {
   final MealListType type;
@@ -28,10 +29,7 @@ class MealHorizontalListFromData extends StatelessWidget {
           }
 
           if (snapshot.hasError) {
-            // 🔧 للمطور فقط
             debugPrint('Meal list error: ${snapshot.error}');
-
-            // 👤 للمستخدم
             return Center(
               child: Text(
                 L.t('meal_list_error'),
@@ -82,13 +80,67 @@ class MealHorizontalListFromData extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Expanded(
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(14),
-                            child: Image.network(
-                              meal.image ?? '',
-                              fit: BoxFit.cover,
-                              width: double.infinity,
-                            ),
+                          child: Stack(
+                            clipBehavior: Clip.none,
+                            children: [
+                              ClipRRect(
+                                borderRadius: BorderRadius.circular(14),
+                                child: Image.network(
+                                  meal.image ?? '',
+                                  fit: BoxFit.cover,
+                                  width: double.infinity,
+                                  height: double.infinity,
+                                ),
+                              ),
+                              // العداد أعلى الصورة في الشاشة الرئيسية والتوصيات
+                              Positioned(
+                                top: -5,
+                                right: -5,
+                                child: ListenableBuilder(
+                                  listenable: CartController.instance,
+                                  builder: (context, _) {
+                                    final mealCount = CartController
+                                        .instance
+                                        .lines
+                                        .where(
+                                          (l) =>
+                                              l.mealId.toString() ==
+                                              meal.id.toString(),
+                                        )
+                                        .fold(0, (sum, l) => sum + l.quantity);
+
+                                    if (mealCount == 0)
+                                      return const SizedBox.shrink();
+
+                                    return Container(
+                                      padding: const EdgeInsets.all(4),
+                                      decoration: BoxDecoration(
+                                        color: Colors.black,
+                                        shape: BoxShape.circle,
+                                        border: Border.all(
+                                          color: AppColors.primary(context),
+                                          width: 1.5,
+                                        ),
+                                      ),
+                                      constraints: const BoxConstraints(
+                                        minWidth: 22,
+                                        minHeight: 22,
+                                      ),
+                                      child: Center(
+                                        child: Text(
+                                          '$mealCount',
+                                          style: const TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 11,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                         const SizedBox(height: 8),
@@ -103,7 +155,7 @@ class MealHorizontalListFromData extends StatelessWidget {
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          "${meal.basePrice} AED", // ✅ من الداتا
+                          "${meal.basePrice} SAR", // ✅ من الداتا
                           style: TextStyle(
                             color: AppColors.primary(context),
                             fontWeight: FontWeight.bold,

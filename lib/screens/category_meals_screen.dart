@@ -4,8 +4,10 @@ import '../models/category_model.dart';
 import '../models/meal_model.dart';
 import '../services/category_service.dart';
 import '../services/meal_service.dart';
+import '../utils/cart_controller.dart';
 import '../utils/l.dart';
 import '../utils/language_controller.dart';
+import 'meal_details_screen.dart';
 
 class CategoryMealsScreen extends StatefulWidget {
   final int initialIndex;
@@ -40,7 +42,7 @@ class _CategoryMealsScreenState extends State<CategoryMealsScreen>
     final data = await CategoryService().getCategories();
     if (!mounted) return;
 
-    final totalTabs = data.length + 1; // All + categories
+    final totalTabs = data.length + 1;
     final safeIndex = widget.initialIndex < totalTabs ? widget.initialIndex : 0;
 
     _tabController = TabController(
@@ -96,7 +98,7 @@ class _CategoryMealsScreenState extends State<CategoryMealsScreen>
       body: TabBarView(
         controller: _tabController,
         children: [
-          const _MealsList(categoryId: null), // All
+          const _MealsList(categoryId: null),
           ...categories.map((CategoryModel c) => _MealsList(categoryId: c.id)),
         ],
       ),
@@ -141,64 +143,210 @@ class _MealsList extends StatelessWidget {
           itemBuilder: (context, index) {
             final meal = meals[index];
 
-            return Container(
-              margin: const EdgeInsets.only(bottom: 16),
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: AppColors.card(context),
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: Row(
-                children: [
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(14),
-                    child: Image.network(
-                      (meal.image ?? '').trim(),
-                      width: 90,
-                      height: 90,
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => Container(
-                        width: 90,
-                        height: 90,
-                        color: AppColors.card(context),
-                        alignment: Alignment.center,
-                        child: Icon(
-                          Icons.image_not_supported,
-                          color: AppColors.textGrey(context),
-                        ),
-                      ),
-                    ),
+            return GestureDetector(
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => MealDetailsScreen(meal: meal),
                   ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                );
+              },
+              child: Container(
+                margin: const EdgeInsets.only(bottom: 16),
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: AppColors.card(context),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Row(
+                  children: [
+                    // ── الصورة مع العداد ──
+                    Stack(
+                      clipBehavior: Clip.none,
                       children: [
-                        Text(
-                          meal.displayName(LanguageController.ar),
-                          style: TextStyle(
-                            color: AppColors.text(context),
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(14),
+                          child: Image.network(
+                            (meal.image ?? '').trim(),
+                            width: 90,
+                            height: 90,
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, __, ___) => Container(
+                              width: 90,
+                              height: 90,
+                              color: AppColors.card(context),
+                              alignment: Alignment.center,
+                              child: Icon(
+                                Icons.image_not_supported,
+                                color: AppColors.textGrey(context),
+                              ),
+                            ),
                           ),
                         ),
-                        const SizedBox(height: 6),
-                        Text(
-                          '${meal.basePrice} AED',
-                          style: TextStyle(
-                            color: AppColors.text(context),
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
+                        // العداد الذي يظهر "برا" على الكرت
+                        Positioned(
+                          top: -5,
+                          right: -5,
+                          child: ListenableBuilder(
+                            listenable: CartController.instance,
+                            builder: (context, _) {
+                              final mealCount = CartController.instance.lines
+                                  .where(
+                                    (l) =>
+                                        l.mealId.toString() ==
+                                        meal.id.toString(),
+                                  )
+                                  .fold(0, (sum, l) => sum + l.quantity);
+
+                              if (mealCount == 0)
+                                return const SizedBox.shrink();
+
+                              return Container(
+                                padding: const EdgeInsets.all(4),
+                                decoration: BoxDecoration(
+                                  color: Colors.black, // أسود كما هو مطلوب
+                                  shape: BoxShape.circle,
+                                  border: Border.all(
+                                    color: AppColors.primary(context),
+                                    width: 1.5,
+                                  ),
+                                ),
+                                constraints: const BoxConstraints(
+                                  minWidth: 22,
+                                  minHeight: 22,
+                                ),
+                                child: Center(
+                                  child: Text(
+                                    '$mealCount',
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ),
+                              );
+                            },
                           ),
                         ),
                       ],
                     ),
-                  ),
-                  CircleAvatar(
-                    backgroundColor: AppColors.primary(context),
-                    child: Icon(Icons.add, color: AppColors.text(context)),
-                  ),
-                ],
+
+                    const SizedBox(width: 12),
+
+                    // ── الاسم والسعر ──
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            meal.displayName(LanguageController.ar),
+                            style: TextStyle(
+                              color: AppColors.text(context),
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            '${meal.basePrice} SAR',
+                            style: TextStyle(
+                              color: AppColors.primary(context),
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    // ── زر + مع Badge ──
+                    ListenableBuilder(
+                      listenable: CartController.instance,
+                      builder: (context, _) {
+                        // الطريقة الصحيحة لحساب كمية الوجبة بغض النظر عن الإضافات
+                        final mealCount = CartController.instance.lines
+                            .where(
+                              (l) => l.mealId.toString() == meal.id.toString(),
+                            )
+                            .fold(0, (sum, l) => sum + l.quantity);
+
+                        final bool isInCart = mealCount > 0;
+
+                        return GestureDetector(
+                          onTap: () {
+                            // تنفيذ الإضافة
+                            CartController.instance.addLine(
+                              mealId: meal.id,
+                              name: meal.displayName(LanguageController.ar),
+                              price: meal.basePrice,
+                              imageUrl: meal.image,
+                              addonIds: [],
+                              addonNames: [],
+                            );
+
+                            // إظهار تنبيه نجاح
+                            ScaffoldMessenger.of(context).hideCurrentSnackBar();
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  '${meal.displayName(LanguageController.ar)} ${LanguageController.ar ? 'أضيفت للسلة' : 'added to cart'}',
+                                  style: const TextStyle(fontFamily: 'Cairo'),
+                                ),
+                                backgroundColor: AppColors.primary(context),
+                                duration: const Duration(seconds: 1),
+                                behavior: SnackBarBehavior.floating,
+                              ),
+                            );
+                          },
+                          child: Stack(
+                            clipBehavior: Clip.none,
+                            children: [
+                              // تغيير شكل الزر إذا كانت الوجبة مضافة
+                              CircleAvatar(
+                                backgroundColor: AppColors.primary(context),
+                                child: Icon(
+                                  isInCart
+                                      ? Icons.shopping_cart_checkout
+                                      : Icons.add, // أيقونة مختلفة عند الإضافة
+                                  color: Colors.black,
+                                ),
+                              ),
+                              // العداد (Badge)
+                              if (isInCart)
+                                Positioned(
+                                  top: -6,
+                                  right: -6,
+                                  child: Container(
+                                    padding: const EdgeInsets.all(4),
+                                    decoration: const BoxDecoration(
+                                      color: Colors.black,
+                                      shape: BoxShape.circle,
+                                    ),
+                                    constraints: const BoxConstraints(
+                                      minWidth: 20,
+                                      minHeight: 20,
+                                    ),
+                                    child: Center(
+                                      child: Text(
+                                        '$mealCount',
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 10,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          ),
+                        );
+                      },
+                    ),
+                  ],
+                ),
               ),
             );
           },

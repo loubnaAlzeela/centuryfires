@@ -4,7 +4,6 @@ import '../../theme/app_colors.dart';
 import '../../utils/l.dart';
 import '../../utils/language_controller.dart';
 import 'package:url_launcher/url_launcher.dart';
-import 'driver_map_screen.dart';
 
 class DriverOrderDetailsScreen extends StatefulWidget {
   final String orderId;
@@ -356,30 +355,18 @@ class _DriverOrderDetailsScreenState extends State<DriverOrderDetailsScreen> {
             width: double.infinity,
             child: ElevatedButton.icon(
               onPressed: () async {
-                final session = Supabase.instance.client.auth.currentSession;
-                if (session == null) return;
-
-                final userRes = await Supabase.instance.client
-                    .from('users')
-                    .select('id')
-                    .eq('auth_id', session.user.id)
-                    .single();
-
-                final String driverUserId = userRes['id'].toString();
-
-                if (!context.mounted) return;
-
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => DriverMapScreen(
-                      orderId: widget.orderId, // ✅ هون الصح
-                      driverUserId: driverUserId,
-                      customerLat: (lat as num).toDouble(),
-                      customerLng: (lng as num).toDouble(),
-                    ),
-                  ),
-                );
+                if (lat != null && lng != null) {
+                  _launchGoogleMaps(
+                    (lat as num).toDouble(),
+                    (lng as num).toDouble(),
+                  );
+                } else {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(L.t('no_location_provided')),
+                    ), // You might want to add this to translations if needed
+                  );
+                }
               },
               icon: const Icon(Icons.navigation, color: Colors.black),
               label: Text(
@@ -513,16 +500,46 @@ class _DriverOrderDetailsScreenState extends State<DriverOrderDetailsScreen> {
 
   //============================================================
   Future<void> _call(String phone) async {
-    final Uri url = Uri.parse("tel:$phone");
+    final cleanPhone = phone.replaceAll(RegExp(r'[^\d+]'), '');
+    final Uri url = Uri.parse("tel:$cleanPhone");
     if (await canLaunchUrl(url)) {
       await launchUrl(url);
     }
   }
 
   Future<void> _openWhatsApp(String phone) async {
-    final Uri url = Uri.parse("https://wa.me/$phone");
-    if (await canLaunchUrl(url)) {
+    // إزالة أية مسافات أو أحرف من رقم الهاتف
+    final cleanPhone = phone.replaceAll(RegExp(r'[^\d+]'), '');
+    final Uri url = Uri.parse("https://wa.me/$cleanPhone");
+
+    try {
+      // محاولة فتح الرابط مباشرة بدون canLaunchUrl لأنها تتطلب إعدادات <queries> اضافية في الاندرويد
       await launchUrl(url, mode: LaunchMode.externalApplication);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Could not open WhatsApp. Please check if it is installed.',
+            ),
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _launchGoogleMaps(double lat, double lng) async {
+    final Uri url = Uri.parse(
+      "https://www.google.com/maps/dir/?api=1&destination=$lat,$lng",
+    );
+    try {
+      await launchUrl(url, mode: LaunchMode.externalApplication);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Could not open Google Maps.')));
+      }
     }
   }
 

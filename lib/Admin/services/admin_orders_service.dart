@@ -12,6 +12,16 @@ class AdminOrdersService {
     created_at,
     users (
       name
+    ),
+    order_items (
+      quantity,
+      unit_price,
+      total_price,
+      notes,
+      meals (
+        name_en,
+        name_ar
+      )
     )
   ''';
 

@@ -67,7 +67,7 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
         elevation: 0,
         title: Text(L.t('order_details')),
       ),
-      body: Padding(
+      body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Container(
           padding: const EdgeInsets.all(16),
@@ -121,6 +121,79 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
                   ),
                 ],
               ),
+
+              const SizedBox(height: 20),
+
+              if (order['order_items'] != null &&
+                  (order['order_items'] as List).isNotEmpty) ...[
+                Text(
+                  L.t('items'),
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                ...((order['order_items'] as List).map((item) {
+                  final qty = item['quantity'] ?? 0;
+                  final mealMap = item['meals'] as Map<String, dynamic>?;
+                  final mealName =
+                      mealMap?['name_en'] ?? mealMap?['name_ar'] ?? '';
+                  final price = item['total_price']?.toString() ?? '0';
+                  final notes = item['notes']?.toString();
+
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                '$qty x $mealName',
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                            Text(
+                              price,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
+                        ),
+                        if (notes != null && notes.isNotEmpty)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 4),
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Icon(
+                                  Icons.edit_note,
+                                  size: 16,
+                                  color: AppColors.primary(context),
+                                ),
+                                const SizedBox(width: 4),
+                                Expanded(
+                                  child: Text(
+                                    notes,
+                                    style: const TextStyle(
+                                      fontSize: 13,
+                                      fontStyle: FontStyle.italic,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                      ],
+                    ),
+                  );
+                })),
+              ],
 
               const SizedBox(height: 30),
 

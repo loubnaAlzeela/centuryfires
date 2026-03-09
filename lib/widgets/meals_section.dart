@@ -5,6 +5,7 @@ import '../services/meal_service.dart';
 import '../screens/meal_details_screen.dart';
 import '../utils/l.dart';
 import '../utils/language_controller.dart';
+import '../utils/cart_controller.dart';
 
 class MealsSection extends StatelessWidget {
   final String title;
@@ -160,28 +161,76 @@ class _AnimatedMealCardState extends State<_AnimatedMealCard> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               // ================= IMAGE =================
-              ClipRRect(
-                borderRadius: const BorderRadius.vertical(
-                  top: Radius.circular(22),
-                ),
-                child: Hero(
-                  tag: 'meal_${meal.id}',
-                  child: Image.network(
-                    meal.image ?? '',
-                    height: 200,
-                    width: double.infinity,
-                    fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) => Container(
-                      height: 200,
-                      color: AppColors.card(context),
-                      alignment: Alignment.center,
-                      child: Icon(
-                        Icons.image_not_supported,
-                        color: AppColors.textGrey(context),
+              Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  ClipRRect(
+                    borderRadius: const BorderRadius.vertical(
+                      top: Radius.circular(22),
+                    ),
+                    child: Hero(
+                      tag: 'meal_${meal.id}',
+                      child: Image.network(
+                        meal.image ?? '',
+                        height: 200,
+                        width: double.infinity,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => Container(
+                          height: 200,
+                          color: AppColors.card(context),
+                          alignment: Alignment.center,
+                          child: Icon(
+                            Icons.image_not_supported,
+                            color: AppColors.textGrey(context),
+                          ),
+                        ),
                       ),
                     ),
                   ),
-                ),
+                  // عداد الكمية أعلى الصورة
+                  Positioned(
+                    top: 10,
+                    right: 10,
+                    child: ListenableBuilder(
+                      listenable: CartController.instance,
+                      builder: (context, _) {
+                        final mealCount = CartController.instance.lines
+                            .where(
+                              (l) => l.mealId.toString() == meal.id.toString(),
+                            )
+                            .fold(0, (sum, l) => sum + l.quantity);
+
+                        if (mealCount == 0) return const SizedBox.shrink();
+
+                        return Container(
+                          padding: const EdgeInsets.all(6),
+                          decoration: BoxDecoration(
+                            color: Colors.black,
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: AppColors.primary(context),
+                              width: 1.5,
+                            ),
+                          ),
+                          constraints: const BoxConstraints(
+                            minWidth: 26,
+                            minHeight: 26,
+                          ),
+                          child: Center(
+                            child: Text(
+                              '$mealCount',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 13,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ],
               ),
 
               // ================= CONTENT =================
@@ -215,14 +264,89 @@ class _AnimatedMealCardState extends State<_AnimatedMealCard> {
                         ],
                       ),
                     ),
-                    Container(
-                      width: 44,
-                      height: 44,
-                      decoration: BoxDecoration(
-                        color: AppColors.primary(context),
-                        shape: BoxShape.circle,
-                      ),
-                      child: Icon(Icons.add, color: AppColors.text(context)),
+                    ListenableBuilder(
+                      listenable: CartController.instance,
+                      builder: (context, _) {
+                        final mealCount = CartController.instance.lines
+                            .where(
+                              (l) => l.mealId.toString() == meal.id.toString(),
+                            )
+                            .fold(0, (sum, l) => sum + l.quantity);
+                        final bool isInCart = mealCount > 0;
+
+                        return GestureDetector(
+                          onTap: () {
+                            // إضافة الوجبة للسلة
+                            CartController.instance.addLine(
+                              mealId: meal.id,
+                              name: meal.displayName(LanguageController.ar),
+                              price: meal.basePrice,
+                              imageUrl: meal.image,
+                              addonIds: [],
+                              addonNames: [],
+                            );
+
+                            // تنبيه إضافة ناجحة
+                            ScaffoldMessenger.of(context).hideCurrentSnackBar();
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  '${meal.displayName(LanguageController.ar)} ${LanguageController.ar ? 'أضيفت للسلة' : 'added to cart'}',
+                                  style: const TextStyle(fontFamily: 'Cairo'),
+                                ),
+                                backgroundColor: AppColors.primary(context),
+                                duration: const Duration(seconds: 1),
+                                behavior: SnackBarBehavior.floating,
+                              ),
+                            );
+                          },
+                          child: Stack(
+                            clipBehavior: Clip.none,
+                            children: [
+                              Container(
+                                width: 44,
+                                height: 44,
+                                decoration: BoxDecoration(
+                                  color: AppColors.primary(context),
+                                  shape: BoxShape.circle,
+                                ),
+                                child: Icon(
+                                  isInCart
+                                      ? Icons.shopping_cart_checkout
+                                      : Icons.add,
+                                  color: AppColors.text(context),
+                                ),
+                              ),
+                              if (isInCart)
+                                Positioned(
+                                  top: -4,
+                                  right: -4,
+                                  child: Container(
+                                    padding: const EdgeInsets.all(4),
+                                    decoration: const BoxDecoration(
+                                      color: Colors.black,
+                                      shape: BoxShape.circle,
+                                    ),
+                                    constraints: const BoxConstraints(
+                                      minWidth: 18,
+                                      minHeight: 18,
+                                    ),
+                                    child: Center(
+                                      child: Text(
+                                        '$mealCount',
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 10,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          ),
+                        );
+                      },
                     ),
                   ],
                 ),

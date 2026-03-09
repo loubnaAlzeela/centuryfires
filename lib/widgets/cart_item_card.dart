@@ -51,14 +51,41 @@ class CartItemCard extends StatelessWidget {
                 ),
                 const SizedBox(height: 4),
                 if (item.subtitle != null && item.subtitle!.isNotEmpty)
-                  Text(
-                    item.subtitle!,
-                    style: TextStyle(
-                      color: AppColors.textGrey(context),
-                      fontSize: 12,
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 4),
+                    child: Text(
+                      item.subtitle!,
+                      style: TextStyle(
+                        color: AppColors.textGrey(context),
+                        fontSize: 12,
+                      ),
                     ),
                   ),
-                const SizedBox(height: 6),
+                if (item.notes != null && item.notes!.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 6),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Icon(
+                          Icons.edit_note,
+                          size: 14,
+                          color: AppColors.primary(context),
+                        ),
+                        const SizedBox(width: 4),
+                        Expanded(
+                          child: Text(
+                            item.notes!,
+                            style: TextStyle(
+                              color: AppColors.text(context),
+                              fontSize: 12,
+                              fontStyle: FontStyle.italic,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 Text(
                   '${item.price.toStringAsFixed(2)} ${L.t('cart_item_card_currency')}',
                   style: TextStyle(
