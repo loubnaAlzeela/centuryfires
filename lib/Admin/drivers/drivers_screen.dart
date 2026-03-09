@@ -192,6 +192,20 @@ class _DriversScreenState extends State<DriversScreen> {
                                         color: AppColors.text(context),
                                       ),
                                     ),
+                                    IconButton(
+                                      constraints: const BoxConstraints(),
+                                      padding: EdgeInsets.zero,
+                                      icon: Icon(
+                                        Icons.person_remove,
+                                        color: AppColors.error(context),
+                                        size: 20,
+                                      ),
+                                      tooltip: L.t('remove_driver'),
+                                      onPressed: () => _confirmRemoveDriver(
+                                        d['id'],
+                                        d['name'] ?? L.t('driver'),
+                                      ),
+                                    ),
                                   ],
                                 ),
                               );
@@ -462,6 +476,89 @@ class _DriversScreenState extends State<DriversScreen> {
     } catch (e) {
       if (!mounted) return;
 
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(L.t('error_general')),
+          backgroundColor: AppColors.error(context),
+        ),
+      );
+    }
+  }
+
+  // ================= DEMOTE (REMOVE DRIVER) =================
+  Future<void> _confirmRemoveDriver(String userId, String name) async {
+    final bool? confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: AppColors.card(context),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text(
+          L.t('remove_driver'),
+          style: TextStyle(color: AppColors.text(context)),
+        ),
+        content: Text(
+          L.t('remove_driver_confirm').replaceAll('{name}', name),
+          style: TextStyle(color: AppColors.textGrey(context)),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text(
+              L.t('cancel'),
+              style: TextStyle(color: AppColors.textGrey(context)),
+            ),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.error(context),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+            onPressed: () => Navigator.pop(context, true),
+            child: Text(
+              L.t('remove'),
+              style: const TextStyle(color: Colors.white),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true) return;
+
+    _demoteToCustomer(userId);
+  }
+
+  Future<void> _demoteToCustomer(String userId) async {
+    try {
+      if (mounted) setState(() => loading = true);
+
+      // 1. Update user role to customer
+      await supabase
+          .from('users')
+          .update({'role': 'customer'})
+          .eq('id', userId);
+
+      // 2. Set driver profile as inactive
+      await supabase
+          .from('driver_profiles')
+          .update({'is_active': false})
+          .eq('id', userId);
+
+      await fetchDrivers(); // update the list
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(L.t('removed_success')),
+          backgroundColor: AppColors.primary(context),
+        ),
+      );
+    } catch (e) {
+      debugPrint('Error removing driver: $e');
+      if (!mounted) return;
+      setState(() => loading = false);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(L.t('error_general')),

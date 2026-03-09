@@ -3,6 +3,7 @@ plugins {
     id("kotlin-android")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
+    id("com.google.gms.google-services") 
 }
 import java.util.Properties
 import java.io.FileInputStream
@@ -70,4 +71,12 @@ flutter {
 
 dependencies {
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.0.4")
+    // استيراد Firebase BoM
+    implementation(platform("com.google.firebase:firebase-bom:34.10.0"))
+    
+    // مكتبة التحقق برقم الجوال (OTP)
+    implementation("com.google.firebase:firebase-auth")
+    
+    // مكتبة التحليلات (اختيارية لكن يفضل وجودها)
+    implementation("com.google.firebase:firebase-analytics")
 }

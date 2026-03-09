@@ -214,4 +214,24 @@ class AddressService {
   void clearCache() {
     _cachedUserId = null;
   }
+
+  //============================
+  // Save set default address
+  //============================
+  Future<void> setDefaultAddress(String addressId) async {
+    final userId = await _getInternalUserId();
+
+    // صفّر الكل أولاً
+    await _client
+        .from('user_addresses')
+        .update({'is_default': false})
+        .eq('user_id', userId);
+
+    // اجعل هذا العنوان default
+    await _client
+        .from('user_addresses')
+        .update({'is_default': true})
+        .eq('id', addressId)
+        .eq('user_id', userId);
+  }
 }

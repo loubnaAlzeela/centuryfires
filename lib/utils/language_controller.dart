@@ -3,12 +3,12 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 class LanguageController {
   // 🔹 المصدر الوحيد للحقيقة
-  static final ValueNotifier<bool> isArabic = ValueNotifier<bool>(false);
+  static final ValueNotifier<bool> isArabic = ValueNotifier<bool>(true);
 
   // 🔹 تحميل اللغة عند تشغيل التطبيق
   static Future<void> loadLanguage() async {
     final prefs = await SharedPreferences.getInstance();
-    final saved = prefs.getBool('lang_ar') ?? false;
+    final saved = prefs.getBool('lang_ar') ?? true;
     isArabic.value = saved;
   }
 

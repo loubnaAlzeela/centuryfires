@@ -268,6 +268,8 @@ class L {
     ],
     'awaiting_payment': ['Awaiting Payment', 'بانتظار الدفع'],
     'enter_card_details': ['Card Details', 'بيانات البطاقة'],
+    'saved_cards': ['Saved Cards', 'البطاقات المحفوظة'],
+    'add_new_card': ['Add New Card', 'إضافة بطاقة جديدة'],
     'card_holder_name': ['Card Holder Name', 'اسم حامل البطاقة'],
     'card_number': ['Card Number', 'رقم البطاقة'],
     'month': ['Month', 'الشهر'],
@@ -935,8 +937,18 @@ class L {
     'ratings': ['Ratings', 'التقييمات'],
 
     //=============== Drivers =============
+    'driver_management': ['Driver Management', 'إدارة السائقين'],
     'add_driver': ['Add Driver', 'إضافة سائق'],
-    'search_driver': ['Search driver...', 'بحث عن سائق...'],
+    'remove_driver': ['Remove Driver', 'إزالة كـ سائق'],
+    'remove_driver_confirm': [
+      'Are you sure you want to remove {name}? This will return them to a normal customer.',
+      'هل أنت متأكد من إزالة "{name}" ورده كمستخدم عادي؟',
+    ],
+    'removed_success': [
+      'Driver removed successfully',
+      'تمت الإزالة كـ سائق بنجاح',
+    ],
+    'search_driver': ['Search Driver', 'البحث عن سائق'],
     'name': ['Name', 'الاسم'],
     'vehicle_type': ['Vehicle Type', 'نوع المركبة'],
     'plate_number': ['Plate Number', 'رقم اللوحة'],
@@ -975,7 +987,6 @@ class L {
     'select_status': ['Select Status', 'اختر الحالة'],
     'select_driver': ['Select Driver', 'اختر سائق'],
     'driver_information': ['Driver Information', 'معلومات السائق'],
-    'driver_management': ['Driver Management', 'إدارة السائقين'],
 
     //================= Dashbaord =================
     'todays_orders': ['Today\'s Orders', 'طلبات اليوم'],

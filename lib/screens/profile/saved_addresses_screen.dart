@@ -193,6 +193,42 @@ class _SavedAddressesScreenState extends State<SavedAddressesScreen> {
                       ),
                     ),
 
+                    // ── MAP PICKER ────────────────────────
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton.icon(
+                        icon: const Icon(Icons.map),
+                        label: Text(
+                          _selectedLocation == null
+                              ? L.t('select_location')
+                              : '${L.t('location_selected')} ✓',
+                        ),
+                        onPressed: () async {
+                          final result = await Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const MapPickerScreen(),
+                            ),
+                          );
+
+                          if (result != null) {
+                            setState(() {
+                              _selectedLocation = result['location'] as LatLng?;
+
+                              final addr = result['address'];
+                              if (addr != null) {
+                                street.text = addr['road'] ?? '';
+                                area.text = addr['suburb'] ?? '';
+                                city.text = addr['city'] ?? addr['town'] ?? '';
+                              }
+                            });
+                          }
+                        },
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+
                     _section(
                       context,
                       title: L.t('address_name'),
@@ -233,47 +269,20 @@ class _SavedAddressesScreenState extends State<SavedAddressesScreen> {
                       value: _setAsDefault,
                       activeColor: AppColors.primary(context),
                       title: Text(L.t('set_default_address')),
-                      onChanged: (v) =>
-                          setState(() => _setAsDefault = v ?? false),
-                    ),
-
-                    const SizedBox(height: 12),
-
-                    // ── MAP PICKER ────────────────────────
-                    SizedBox(
-                      width: double.infinity,
-                      child: OutlinedButton.icon(
-                        icon: const Icon(Icons.map),
-                        label: Text(
-                          _selectedLocation == null
-                              ? L.t('select_location')
-                              : '${L.t('location_selected')} ✓',
-                        ),
-                        onPressed: () async {
-                          final result = await Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => const MapPickerScreen(),
-                            ),
+                      onChanged: (v) async {
+                        if (_address == null || _address!['id'] == null) return;
+                        if (v != true) return; // نمنع إلغاء الـ default مباشرة
+                        setState(() => _setAsDefault = true);
+                        try {
+                          await AddressService().setDefaultAddress(
+                            _address!['id'],
                           );
-
-                          if (result != null) {
-                            setState(() {
-                              _selectedLocation = result['location'] as LatLng?;
-
-                              final addr = result['address'];
-                              if (addr != null) {
-                                street.text = addr['road'] ?? '';
-                                area.text = addr['suburb'] ?? '';
-                                city.text = addr['city'] ?? addr['town'] ?? '';
-                              }
-                            });
-                          }
-                        },
-                      ),
+                          await _loadAddresses();
+                        } catch (_) {
+                          setState(() => _setAsDefault = false);
+                        }
+                      },
                     ),
-
-                    const SizedBox(height: 12),
 
                     // ── SAVE ──────────────────────────────
                     SizedBox(

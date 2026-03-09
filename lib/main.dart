@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter_native_splash/flutter_native_splash.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
-
+import 'package:firebase_core/firebase_core.dart';
 import 'theme/theme_controller.dart';
 import 'utils/cart_controller.dart';
 import 'utils/language_controller.dart';
@@ -15,6 +15,8 @@ import 'screens/auth/reset_password_screen.dart';
 import 'dart:async';
 
 Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp();
   final widgetsBinding = WidgetsFlutterBinding.ensureInitialized();
   FlutterNativeSplash.preserve(widgetsBinding: widgetsBinding);
   const supabaseUrl = 'https://vznqsmzqvliarvfcpaaq.supabase.co';
