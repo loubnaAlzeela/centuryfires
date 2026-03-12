@@ -271,8 +271,26 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
                 children: [
                   _priceRow(context, L.t('subtotal'), order.subtotal),
 
-                  if (order.discount > 0)
-                    _priceRow(context, L.t('discount'), -order.discount),
+                  if (order.deliveryFee > 0)
+                    _priceRow(context, L.t('delivery_fee'), order.deliveryFee),
+
+                  if (order.discount > 0) ...[
+                    if (order.discountCoupon > 0)
+                      _priceRow(
+                        context,
+                        '${L.t('coupon')}: ${order.appliedCouponCode ?? ''}',
+                        -order.discountCoupon,
+                      ),
+                    if (order.discountBigOrder > 0)
+                      _priceRow(
+                        context,
+                        L.t('big_order_discount'),
+                        -order.discountBigOrder,
+                      ),
+                    // Fallback for old orders without detailed fields
+                    if (order.discountCoupon == 0 && order.discountBigOrder == 0)
+                      _priceRow(context, L.t('discount'), -order.discount),
+                  ],
 
                   const Divider(height: 24),
 

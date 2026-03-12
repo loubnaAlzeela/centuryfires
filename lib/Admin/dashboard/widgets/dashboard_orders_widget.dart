@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:audioplayers/audioplayers.dart';
 import '../../../theme/app_colors.dart';
 import 'dashboard_order_row.dart';
 import '../../../utils/l.dart';
@@ -16,14 +15,12 @@ class DashboardOrdersWidget extends StatefulWidget {
 class _DashboardOrdersWidgetState extends State<DashboardOrdersWidget> {
   final SupabaseClient _supabase = Supabase.instance.client;
 
-  final AudioPlayer _player = AudioPlayer();
   late final RealtimeChannel _ordersChannel;
 
   List<Map<String, dynamic>> orders = [];
   bool isLoading = true;
 
   String? _latestOrderId;
-  DateTime? _lastSoundTime;
 
   late Timer _timer;
 
@@ -61,15 +58,7 @@ class _DashboardOrdersWidgetState extends State<DashboardOrdersWidget> {
   }
 
   void _handleNewOrder(String newId) {
-    if (!mounted) return;
 
-    final now = DateTime.now();
-
-    if (_lastSoundTime == null ||
-        now.difference(_lastSoundTime!).inSeconds > 2) {
-      _playNotificationSound();
-      _lastSoundTime = now;
-    }
 
     setState(() {
       _latestOrderId = newId;
@@ -86,17 +75,6 @@ class _DashboardOrdersWidgetState extends State<DashboardOrdersWidget> {
     });
   }
 
-  Future<void> _playNotificationSound() async {
-    try {
-      await _player.setReleaseMode(ReleaseMode.stop);
-      await _player.play(
-        AssetSource('sounds/new_order.mp3'),
-        mode: PlayerMode.lowLatency,
-      );
-    } catch (e) {
-      debugPrint("Sound error: $e");
-    }
-  }
 
   // ================= DATA =================
 
@@ -271,7 +249,6 @@ class _DashboardOrdersWidgetState extends State<DashboardOrdersWidget> {
   void dispose() {
     _timer.cancel();
     _supabase.removeChannel(_ordersChannel);
-    _player.dispose();
     super.dispose();
   }
 }

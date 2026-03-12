@@ -18,7 +18,8 @@ class _AdminRatingsScreenState extends State<AdminRatingsScreen>
   bool _loading = true;
   List<Map<String, dynamic>> _reviews = [];
   Map<String, dynamic> _stats = {};
-  bool _sortHighest = true;
+  // sort modes: rating_high, rating_low, newest, oldest
+  String _sortBy = 'newest';
 
   @override
   void initState() {
@@ -259,13 +260,24 @@ class _AdminRatingsScreenState extends State<AdminRatingsScreen>
       filtered = filtered.where((r) => (r['rating'] ?? 0) <= 3).toList();
     }
 
-    if (filter == 'all') {
-      filtered.sort((a, b) {
-        final r1 = (a['rating'] ?? 0) as num;
-        final r2 = (b['rating'] ?? 0) as num;
-        return _sortHighest ? r2.compareTo(r1) : r1.compareTo(r2);
-      });
-    }
+    // ترتيب حسب الوضع المختار
+    filtered.sort((a, b) {
+      switch (_sortBy) {
+        case 'rating_high':
+          return ((b['rating'] ?? 0) as num).compareTo((a['rating'] ?? 0) as num);
+        case 'rating_low':
+          return ((a['rating'] ?? 0) as num).compareTo((b['rating'] ?? 0) as num);
+        case 'oldest':
+          final da = DateTime.tryParse((a['created_at'] ?? '').toString()) ?? DateTime(2000);
+          final db = DateTime.tryParse((b['created_at'] ?? '').toString()) ?? DateTime(2000);
+          return da.compareTo(db);
+        case 'newest':
+        default:
+          final da = DateTime.tryParse((a['created_at'] ?? '').toString()) ?? DateTime(2000);
+          final db = DateTime.tryParse((b['created_at'] ?? '').toString()) ?? DateTime(2000);
+          return db.compareTo(da);
+      }
+    });
 
     if (filtered.isEmpty) {
       return Center(
@@ -276,41 +288,33 @@ class _AdminRatingsScreenState extends State<AdminRatingsScreen>
       );
     }
 
-    final bool showSort = filter == 'all';
-    final int itemCount = showSort ? filtered.length + 1 : filtered.length;
+    final int itemCount = filtered.length + 1; // +1 for sort row
 
     return ListView.builder(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 120),
       itemCount: itemCount,
       itemBuilder: (context, index) {
-        if (showSort && index == 0) {
+        if (index == 0) {
           return Padding(
             padding: const EdgeInsets.only(bottom: 12),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                TextButton.icon(
-                  onPressed: () {
-                    setState(() {
-                      _sortHighest = !_sortHighest;
-                    });
-                  },
-                  icon: Icon(
-                    _sortHighest ? Icons.arrow_downward : Icons.arrow_upward,
-                    size: 18,
-                    color: AppColors.primary(context),
-                  ),
-                  label: Text(
-                    _sortHighest ? L.t('sort_highest') : L.t('sort_lowest'),
-                    style: TextStyle(color: AppColors.primary(context)),
-                  ),
-                ),
-              ],
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: [
+                  _sortChip('newest', L.t('sort_newest'), Icons.arrow_downward),
+                  const SizedBox(width: 8),
+                  _sortChip('oldest', L.t('sort_oldest'), Icons.arrow_upward),
+                  const SizedBox(width: 8),
+                  _sortChip('rating_high', L.t('sort_highest'), Icons.star),
+                  const SizedBox(width: 8),
+                  _sortChip('rating_low', L.t('sort_lowest'), Icons.star_border),
+                ],
+              ),
             ),
           );
         }
 
-        final reviewIndex = showSort ? index - 1 : index;
+        final reviewIndex = index - 1;
         final review = filtered[reviewIndex];
         final isArabic = LanguageController.isArabic.value;
         final mealName = isArabic ? review['name_ar'] : review['name_en'];
@@ -330,6 +334,33 @@ class _AdminRatingsScreenState extends State<AdminRatingsScreen>
           },
           child: _reviewCard(review, mealName ?? ''),
         );
+      },
+    );
+  }
+
+  Widget _sortChip(String mode, String label, IconData icon) {
+    final isSelected = _sortBy == mode;
+    return FilterChip(
+      selected: isSelected,
+      label: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: isSelected ? AppColors.textOnPrimary(context) : AppColors.textGrey(context)),
+          const SizedBox(width: 4),
+          Text(label, style: TextStyle(fontSize: 12)),
+        ],
+      ),
+      selectedColor: AppColors.primary(context),
+      backgroundColor: AppColors.card(context),
+      checkmarkColor: AppColors.textOnPrimary(context),
+      labelStyle: TextStyle(
+        color: isSelected ? AppColors.textOnPrimary(context) : AppColors.text(context),
+      ),
+      side: BorderSide(
+        color: isSelected ? AppColors.primary(context) : AppColors.textGrey(context).withValues(alpha: 0.3),
+      ),
+      onSelected: (_) {
+        setState(() => _sortBy = mode);
       },
     );
   }
@@ -354,14 +385,36 @@ class _AdminRatingsScreenState extends State<AdminRatingsScreen>
             children: [
               Icon(Icons.person, size: 16, color: AppColors.textGrey(context)),
               const SizedBox(width: 6),
-              Text(
-                userName,
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  color: AppColors.textGrey(context),
+              Expanded(
+                child: Text(
+                  userName,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textGrey(context),
+                  ),
                 ),
               ),
+              if (review['user_id'] != null)
+                TextButton.icon(
+                  onPressed: () async {
+                    final userDetails = await _service.getUserDetails(review['user_id'].toString());
+                    if (!mounted) return;
+                    if (userDetails != null) {
+                      _showCustomerDetailsDialog(userDetails);
+                    }
+                  },
+                  icon: Icon(Icons.person_search_rounded, size: 16, color: AppColors.primary(context)),
+                  label: Text(
+                    L.t('details'),
+                    style: TextStyle(fontSize: 12, color: AppColors.primary(context)),
+                  ),
+                  style: TextButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    minimumSize: Size.zero,
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                ),
             ],
           ),
 
@@ -495,6 +548,61 @@ class _AdminRatingsScreenState extends State<AdminRatingsScreen>
                 _load();
               },
               child: Text(L.t('send')),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  // ===========================
+  // USER DETAILS
+  // ===========================
+
+  void _showCustomerDetailsDialog(Map<String, dynamic> userDetails) {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          backgroundColor: AppColors.card(context),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: Row(
+            children: [
+              Icon(Icons.person, color: AppColors.primary(context)),
+              const SizedBox(width: 8),
+              Text(L.t('customer_details'), style: const TextStyle(fontSize: 18)),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.badge, size: 20),
+                title: Text('${userDetails['name'] ?? L.t('guest')}'),
+                contentPadding: EdgeInsets.zero,
+                dense: true,
+              ),
+              if (userDetails['phone'] != null && userDetails['phone'].toString().isNotEmpty)
+                ListTile(
+                  leading: const Icon(Icons.phone, size: 20),
+                  title: Text('${userDetails['phone']}'),
+                  contentPadding: EdgeInsets.zero,
+                  dense: true,
+                ),
+              if (userDetails['email'] != null && userDetails['email'].toString().isNotEmpty)
+                ListTile(
+                  leading: const Icon(Icons.email, size: 20),
+                  title: Text('${userDetails['email']}'),
+                  contentPadding: EdgeInsets.zero,
+                  dense: true,
+                ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: Text(L.t('close'), style: TextStyle(color: AppColors.primary(context))),
             ),
           ],
         );

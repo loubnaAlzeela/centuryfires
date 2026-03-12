@@ -7,11 +7,24 @@ class AdminOrdersService {
   // ✅ تجنب تكرار select string
   static const String _orderSelect = '''
     id,
+    order_number,
     status,
+    subtotal,
+    driver_fee,
+    discount,
+    discount_coupon,
+    discount_big_order,
+    applied_coupon_code,
     total,
+    payment_method,
+    payment_provider,
     created_at,
+    user_id,
     users (
-      name
+      id,
+      name,
+      phone,
+      email
     ),
     order_items (
       quantity,

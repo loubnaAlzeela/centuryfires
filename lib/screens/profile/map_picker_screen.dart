@@ -100,7 +100,12 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
             myLocationEnabled: true,
             myLocationButtonEnabled: true,
             zoomControlsEnabled: false,
-            onMapCreated: (controller) => _mapController = controller,
+            onMapCreated: (controller) {
+              _mapController = controller;
+              debugPrint('✅ GoogleMap created successfully');
+              // Force a style refresh to ensure tiles load
+              controller.setMapStyle('[]');
+            },
 
             // يتتبع مركز الخريطة وهي تتحرك
             onCameraMove: (position) => _center = position.target,

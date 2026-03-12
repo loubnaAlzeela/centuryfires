@@ -10,6 +10,7 @@ class RewardModel {
   final int pointsRequired;
   final bool isActive;
   final DateTime createdAt;
+  final String? promotionId;
 
   RewardModel({
     required this.id,
@@ -20,6 +21,7 @@ class RewardModel {
     required this.pointsRequired,
     required this.isActive,
     required this.createdAt,
+    this.promotionId,
   });
 
   /// 🔹 من Supabase → Dart (AR / EN)
@@ -38,6 +40,7 @@ class RewardModel {
       createdAt: json['created_at'] != null
           ? DateTime.parse(json['created_at'])
           : DateTime.now(),
+      promotionId: json['promotion_id']?.toString(),
     );
   }
 

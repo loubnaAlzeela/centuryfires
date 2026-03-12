@@ -26,7 +26,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   bool updatingEmail = false;
   bool updatingPassword = false;
   bool _hasUpdated = false;
-  String preferredContact = 'phone';
+  List<String> preferredContacts = ['phone'];
 
   @override
   void initState() {
@@ -53,7 +53,11 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
       nameCtrl.text = data['name'] ?? '';
       phoneCtrl.text = data['phone'] ?? '';
-      preferredContact = data['preferred_contact'] ?? 'phone';
+      preferredContacts = (data['preferred_contact'] ?? 'phone')
+          .toString()
+          .split(',')
+          .where((e) => e.isNotEmpty)
+          .toList();
     } catch (_) {
       if (mounted) {
         ScaffoldMessenger.of(
@@ -93,16 +97,37 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     setState(() => updatingPhone = true);
     try {
       final authUser = supabase.auth.currentUser;
-      await supabase
+      if (authUser == null) {
+        throw Exception('Not logged in');
+      }
+      final phoneVal = phoneCtrl.text.trim();
+
+      debugPrint('Updating phone: $phoneVal for auth_id: ${authUser.id}');
+
+      final result = await supabase
           .from('users')
-          .update({'phone': phoneCtrl.text})
-          .eq('auth_id', authUser!.id);
+          .update({'phone': phoneVal.isEmpty ? null : phoneVal})
+          .eq('auth_id', authUser.id)
+          .select('id, phone');
+
+      debugPrint('Phone update result: $result');
+
       _hasUpdated = true;
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(L.t('updated_successfully')),
             backgroundColor: AppColors.primary(context),
+          ),
+        );
+      }
+    } catch (e) {
+      debugPrint('Phone update error: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('${L.t('error')}: $e'),
+            backgroundColor: AppColors.error(context),
           ),
         );
       }
@@ -409,19 +434,36 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   }
 
   Widget _contactOption(String value, IconData icon, String label) {
-    final isSelected = preferredContact == value;
+    final isSelected = preferredContacts.contains(value);
 
     return InkWell(
       onTap: () async {
-        setState(() => preferredContact = value);
+        setState(() {
+          if (preferredContacts.contains(value)) {
+            preferredContacts.remove(value);
+          } else {
+            preferredContacts.add(value);
+          }
+        });
 
         final authUser = supabase.auth.currentUser;
         if (authUser == null) return;
 
-        await supabase
-            .from('users')
-            .update({'preferred_contact': value})
-            .eq('auth_id', authUser.id);
+        try {
+          await supabase
+              .from('users')
+              .update({'preferred_contact': preferredContacts.join(',')})
+              .eq('auth_id', authUser.id);
+        } catch (e) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('${L.t('error')}: $e'),
+                backgroundColor: AppColors.error(context),
+              ),
+            );
+          }
+        }
       },
       borderRadius: BorderRadius.circular(14),
       child: Container(

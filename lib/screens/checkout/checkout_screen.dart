@@ -287,6 +287,14 @@ class _CheckoutPageState extends State<CheckoutPage> {
     if (isPlacingOrder) return;
     setState(() => isPlacingOrder = true);
 
+    // ── التأكد من تحميل الإعدادات قبل إرسال الطلب ──
+    if (isLoadingSettings || deliveryFee == 0) {
+      await _loadSettings();
+    }
+    if (isLoadingTier) {
+      await _loadUserTier();
+    }
+
     try {
       // ── جلب userId ──
       final userRow = await supabase
@@ -307,6 +315,13 @@ class _CheckoutPageState extends State<CheckoutPage> {
           : (autoAcceptOrders ? 'confirmed' : 'pending');
 
       // ── إدراج الطلب ──
+      // ── حساب القيم النهائية قبل الإدراج ──
+      final double finalDeliveryFee = effectiveDeliveryFee;
+      final double finalDiscount = discount + bigOrderDiscount;
+      final double finalTotal = subtotal + finalDeliveryFee - finalDiscount;
+
+      debugPrint('ORDER INSERT: subtotal=$subtotal, deliveryFee=$finalDeliveryFee, discount=$finalDiscount, total=$finalTotal');
+
       final order = await supabase
           .from('orders')
           .insert({
@@ -316,14 +331,18 @@ class _CheckoutPageState extends State<CheckoutPage> {
                 : null,
             'status': orderStatus,
             'subtotal': subtotal,
-            'discount': discount + bigOrderDiscount,
-            'total': total,
+            'driver_fee': finalDeliveryFee,
+            'discount': finalDiscount,
+            'discount_coupon': discount,
+            'discount_big_order': bigOrderDiscount,
+            'applied_coupon_code': couponApplied ? couponCtrl.text.trim() : null,
+            'total': finalTotal,
             'payment_method': isOnlinePayment
                 ? 'online'
-                : 'cash', // ← عدّلي هذا
+                : 'cash',
             'payment_provider': isOnlinePayment
                 ? paymentMethod
-                : null, // ← أضيفي هذا
+                : null,
           })
           .select()
           .single();

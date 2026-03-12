@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:firebase_auth/firebase_auth.dart' as fb;
 
 import '../../theme/app_colors.dart';
 import '../../utils/l.dart';
@@ -56,7 +55,6 @@ class _FadeSlideState extends State<_FadeSlide>
     super.dispose();
   }
 
-  // ✅ FIX 3: عندما invisible تماماً لا تأخذ مساحة في الـ layout
   @override
   Widget build(BuildContext context) {
     return AnimatedBuilder(
@@ -93,10 +91,6 @@ class _LoginSignupScreenState extends State<LoginSignupScreen>
   bool _otpLoading = false;
   int _resendCountdown = 0;
   Timer? _resendTimer;
-
-  // Firebase Phone Auth state
-  String? _firebaseVerificationId;
-  int? _firebaseResendToken;
 
   // كشف ذكي
   bool _secondFieldVisible = false;
@@ -178,25 +172,29 @@ class _LoginSignupScreenState extends State<LoginSignupScreen>
         return;
       }
 
-      try {
-        // ── تحديد الرقم الحقيقي ──
-        final phone = _identifierCtrl.text.trim().startsWith('+')
-            ? _identifierCtrl.text.trim()
-            : (user.phone?.isNotEmpty == true
-                  ? user.phone!
-                  : _phoneCtrl.text.trim());
+      if (event == AuthChangeEvent.signedIn) {
+        try {
+          final phone = _identifierCtrl.text.trim().startsWith('+')
+              ? _identifierCtrl.text.trim()
+              : (user.phone?.isNotEmpty == true
+                    ? user.phone!
+                    : _phoneCtrl.text.trim());
 
-        // ── الإيميل الحقيقي (فارغ إذا سجّل بالرقم) ──
-        final email = user.email ?? session.user.email ?? '';
+          final email = user.email ?? session.user.email ?? '';
 
-        await _ensureUserRow(
-          supabase: supabase,
-          email: email,
-          name: _nameCtrl.text.trim(),
-          phone: phone,
-        );
-      } catch (e) {
-        debugPrint('ENSURE USER error: $e');
+          debugPrint(
+            'ENSURE USER CALL: phone=$phone email=$email name=${_nameCtrl.text.trim()}',
+          );
+
+          await _ensureUserRow(
+            supabase: supabase,
+            email: email,
+            name: _nameCtrl.text.trim(),
+            phone: phone,
+          );
+        } catch (e) {
+          debugPrint('ENSURE USER error: $e');
+        }
       }
 
       if (!mounted) return;
@@ -283,9 +281,9 @@ class _LoginSignupScreenState extends State<LoginSignupScreen>
     super.dispose();
   }
 
-  // ══════════════════════════════════════════════
+  // ══════════════════════════════════════════════════
   // MAIN AUTH HANDLER
-  // ══════════════════════════════════════════════
+  // ══════════════════════════════════════════════════
   Future<void> _handleAuth() async {
     if (isLoading) return;
     if (!_formKey.currentState!.validate()) return;
@@ -299,7 +297,6 @@ class _LoginSignupScreenState extends State<LoginSignupScreen>
     final supabase = Supabase.instance.client;
     final email = _identifierCtrl.text.trim();
     final password = _passwordCtrl.text.trim();
-    //final name = _nameCtrl.text.trim();
 
     try {
       if (isLogin) {
@@ -349,70 +346,42 @@ class _LoginSignupScreenState extends State<LoginSignupScreen>
     }
   }
 
-  // ══════════════════════════════════════════════
-  // PHONE OTP (Firebase)
-  // ══════════════════════════════════════════════
+  // ══════════════════════════════════════════════════
+  // PHONE OTP — Supabase + Vonage (بدون Firebase)
+  // ══════════════════════════════════════════════════
   Future<void> _sendPhoneOtp() async {
     final phone = _identifierCtrl.text.trim();
-    debugPrint('=== FIREBASE SEND OTP START ===');
-    debugPrint('PHONE = $phone');
+    debugPrint('=== SEND OTP START === PHONE=$phone');
     setState(() => _otpLoading = true);
 
     try {
-      await fb.FirebaseAuth.instance.verifyPhoneNumber(
-        phoneNumber: phone,
-        forceResendingToken: _firebaseResendToken,
-        timeout: const Duration(seconds: 60),
+      await Supabase.instance.client.auth.signInWithOtp(phone: phone);
 
-        // ── Android auto-verify (رمز SMS يُقرأ تلقائياً) ──
-        verificationCompleted: (fb.PhoneAuthCredential credential) async {
-          debugPrint('FIREBASE: verificationCompleted (auto)');
-          await _signInWithFirebaseCredential(credential);
-        },
+      if (!mounted) return;
+      setState(() {
+        _otpSent = true;
+        _otpLoading = false;
+        _secondFieldVisible = false;
+      });
 
-        // ── خطأ ──
-        verificationFailed: (fb.FirebaseAuthException e) {
-          debugPrint('FIREBASE verificationFailed: ${e.message}');
-          if (!mounted) return;
-          setState(() => _otpLoading = false);
-          _showErrorMessage(_mapFirebaseError(e));
-        },
+      Future.delayed(const Duration(milliseconds: 150), () {
+        if (!mounted) return;
+        setState(() => _secondFieldVisible = true);
+        Future.delayed(const Duration(milliseconds: 350), () {
+          if (mounted) FocusScope.of(context).requestFocus(_otpFocus);
+        });
+      });
 
-        // ── تم إرسال الرمز، انتظر إدخال المستخدم ──
-        codeSent: (String verificationId, int? resendToken) {
-          debugPrint('FIREBASE codeSent: verificationId=$verificationId');
-          if (!mounted) return;
-          _firebaseVerificationId = verificationId;
-          _firebaseResendToken = resendToken;
-
-          setState(() {
-            _otpSent = true;
-            _otpLoading = false;
-            _secondFieldVisible = false;
-          });
-
-          Future.delayed(const Duration(milliseconds: 150), () {
-            if (!mounted) return;
-            setState(() => _secondFieldVisible = true);
-            Future.delayed(const Duration(milliseconds: 350), () {
-              if (mounted) FocusScope.of(context).requestFocus(_otpFocus);
-            });
-          });
-
-          _startResendCountdown();
-          _showNiceMessage(
-            type: AppMessageType.success,
-            title: L.t('otp_sent_title'),
-            message: L.t('otp_sent_message'),
-          );
-        },
-
-        // ── انتهاء المهلة ──
-        codeAutoRetrievalTimeout: (String verificationId) {
-          debugPrint('FIREBASE codeAutoRetrievalTimeout');
-          _firebaseVerificationId = verificationId;
-        },
+      _startResendCountdown();
+      _showNiceMessage(
+        type: AppMessageType.success,
+        title: L.t('otp_sent_title'),
+        message: L.t('otp_sent_message'),
       );
+    } on AuthException catch (e) {
+      if (!mounted) return;
+      setState(() => _otpLoading = false);
+      _showErrorMessage(_mapAuthError(e));
     } catch (e) {
       if (!mounted) return;
       setState(() => _otpLoading = false);
@@ -422,114 +391,31 @@ class _LoginSignupScreenState extends State<LoginSignupScreen>
   }
 
   Future<void> _verifyPhoneOtp() async {
+    final phone = _identifierCtrl.text.trim();
     final otp = _otpCtrl.text.trim();
+
     if (otp.length < 4) {
       _showErrorMessage(L.t('otp_too_short'));
       return;
     }
-    if (_firebaseVerificationId == null) {
-      _showErrorMessage(L.t('err_general'));
-      return;
-    }
+
     setState(() => isLoading = true);
+
     try {
-      final credential = fb.PhoneAuthProvider.credential(
-        verificationId: _firebaseVerificationId!,
-        smsCode: otp,
+      await Supabase.instance.client.auth.verifyOTP(
+        phone: phone,
+        token: otp,
+        type: OtpType.sms,
       );
-      await _signInWithFirebaseCredential(credential);
-    } catch (e) {
-      if (!mounted) return;
-      setState(() => isLoading = false);
-      _showErrorMessage('ERR: $e');
-    }
-  }
-
-  /// بعد التحقق من Firebase نسجّل الدخول في Supabase بالرقم مباشرة
-  Future<void> _signInWithFirebaseCredential(
-    fb.PhoneAuthCredential credential,
-  ) async {
-    try {
-      final fbResult = await fb.FirebaseAuth.instance.signInWithCredential(
-        credential,
-      );
-      final fbUser = fbResult.user;
-      if (fbUser == null) {
-        if (mounted) setState(() => isLoading = false);
-        _showErrorMessage(L.t('err_general'));
-        return;
-      }
-
-      final phone = fbUser.phoneNumber ?? _identifierCtrl.text.trim();
-      final firebaseUid = fbUser.uid;
-      debugPrint('FIREBASE signed in: uid=$firebaseUid phone=$phone');
-
-      // ── تسجيل / دخول في Supabase بالرقم مباشرة (بدون إيميل وهمي) ──
-      final password = 'fb_${firebaseUid}_phone';
-      final supabase = Supabase.instance.client;
-
-      try {
-        // حاول تسجيل الدخول بالرقم أولاً
-        await supabase.auth.signInWithPassword(
-          phone: phone,
-          password: password,
-        );
-        debugPrint('SUPABASE: signed in existing user by phone ✅');
-      } on AuthException catch (e) {
-        if (e.message.toLowerCase().contains('invalid') ||
-            e.message.toLowerCase().contains('credentials') ||
-            e.message.toLowerCase().contains('not found')) {
-          // المستخدم غير موجود، أنشئ حساب جديد بالرقم
-          await supabase.auth.signUp(
-            phone: phone,
-            password: password,
-            data: {'firebase_uid': firebaseUid},
-          );
-          debugPrint('SUPABASE: created new user by phone ✅');
-          // سجّل الدخول بعد الإنشاء
-          await supabase.auth.signInWithPassword(
-            phone: phone,
-            password: password,
-          );
-          debugPrint('SUPABASE: signed in after signup ✅');
-        } else {
-          rethrow;
-        }
-      }
-    } on fb.FirebaseAuthException catch (e) {
-      debugPrint('FIREBASE credential error: ${e.message}');
-      if (!mounted) return;
-      setState(() => isLoading = false);
-      _showErrorMessage(_mapFirebaseError(e));
+      // onAuthStateChange listener will handle navigation
     } on AuthException catch (e) {
-      debugPrint('SUPABASE auth error: ${e.message}');
       if (!mounted) return;
       setState(() => isLoading = false);
       _showErrorMessage(_mapAuthError(e));
     } catch (e) {
-      debugPrint('Credential error: $e');
       if (!mounted) return;
       setState(() => isLoading = false);
       _showErrorMessage('ERR: $e');
-    }
-  }
-
-  String _mapFirebaseError(fb.FirebaseAuthException e) {
-    switch (e.code) {
-      case 'invalid-phone-number':
-        return L.t('phone_invalid_format');
-      case 'too-many-requests':
-        return L.t('err_too_many_requests');
-      case 'invalid-verification-code':
-        return L.t('err_otp_invalid');
-      case 'session-expired':
-        return L.t('err_otp_invalid');
-      case 'network-request-failed':
-        return L.t('err_network');
-      case 'quota-exceeded':
-        return L.t('err_too_many_requests');
-      default:
-        return '${L.t('err_general')}: ${e.message}';
     }
   }
 
@@ -545,9 +431,9 @@ class _LoginSignupScreenState extends State<LoginSignupScreen>
     });
   }
 
-  // ══════════════════════════════════════════════
+  // ══════════════════════════════════════════════════
   // FORGOT PASSWORD
-  // ══════════════════════════════════════════════
+  // ══════════════════════════════════════════════════
   Future<void> _forgotPassword() async {
     if (_resetLoading) return;
     final email = _identifierCtrl.text.trim();
@@ -575,9 +461,9 @@ class _LoginSignupScreenState extends State<LoginSignupScreen>
     }
   }
 
-  // ══════════════════════════════════════════════
+  // ══════════════════════════════════════════════════
   // ENSURE USER ROW
-  // ══════════════════════════════════════════════
+  // ══════════════════════════════════════════════════
   Future<void> _ensureUserRow({
     required SupabaseClient supabase,
     required String email,
@@ -598,13 +484,11 @@ class _LoginSignupScreenState extends State<LoginSignupScreen>
 
     final authId = authUser.id;
 
-    // ── الرقم: أولوية للمُمرَّر ثم من auth ──
     final finalPhone = phone.trim().isNotEmpty
         ? phone.trim()
         : (authUser.phone ?? '').trim();
 
-    // ── الإيميل: من المُمرَّر أو من auth ──
-    final finalEmail = email.trim().isNotEmpty
+    String finalEmail = email.trim().isNotEmpty
         ? email.trim()
         : (authUser.email ?? '').trim();
 
@@ -624,24 +508,16 @@ class _LoginSignupScreenState extends State<LoginSignupScreen>
         .maybeSingle();
 
     if (existing != null) {
-      final Map<String, dynamic> updateData = {
-        'phone': finalPhone.isEmpty ? null : finalPhone,
-        'email': finalEmail.isEmpty ? null : finalEmail,
-        'is_active': true,
-      };
-
-      // ✅ فقط حدّث الاسم إذا المستخدم كتبه فعلاً (ليس فارغ وليس القيمة الافتراضية)
-      if (name.trim().isNotEmpty) {
-        updateData['name'] = name.trim();
-      }
+      final Map<String, dynamic> updateData = {'is_active': true};
+      if (finalPhone.isNotEmpty) updateData['phone'] = finalPhone;
+      if (finalEmail.isNotEmpty) updateData['email'] = finalEmail;
+      if (name.trim().isNotEmpty) updateData['name'] = name.trim();
 
       await supabase.from('users').update(updateData).eq('auth_id', authId);
-
       debugPrint('ENSURE USER: updated existing user row ✅');
       return;
     }
 
-    // ── مستخدم جديد: استخدم الاسم المُدخل أو 'Customer' كافتراضي ──
     final insertName = name.trim().isNotEmpty ? name.trim() : 'Customer';
 
     await supabase.from('users').insert({
@@ -656,9 +532,9 @@ class _LoginSignupScreenState extends State<LoginSignupScreen>
     debugPrint('ENSURE USER: inserted new user row ✅');
   }
 
-  // ══════════════════════════════════════════════
+  // ══════════════════════════════════════════════════
   // HELPERS
-  // ══════════════════════════════════════════════
+  // ══════════════════════════════════════════════════
   bool _isUserAlreadyExists(AuthException e) {
     final msg = e.message.toLowerCase();
     return msg.contains('already registered') ||
@@ -686,14 +562,6 @@ class _LoginSignupScreenState extends State<LoginSignupScreen>
     if (msg.contains('phone') && msg.contains('not')) {
       return L.t('err_phone_provider_disabled');
     }
-    if (msg.contains('sms') ||
-        msg.contains('twilio') ||
-        msg.contains('provider')) {
-      return L.t('err_phone_provider_disabled');
-    }
-    if (msg.contains('network') || msg.contains('socket')) {
-      return L.t('err_network');
-    }
     if (msg.contains('otp') ||
         msg.contains('token') ||
         msg.contains('expired')) {
@@ -701,6 +569,9 @@ class _LoginSignupScreenState extends State<LoginSignupScreen>
     }
     if (msg.contains('rate') || msg.contains('too many')) {
       return L.t('err_too_many_requests');
+    }
+    if (msg.contains('network') || msg.contains('socket')) {
+      return L.t('err_network');
     }
     return '${L.t('err_general')}: ${e.message}';
   }
@@ -720,13 +591,11 @@ class _LoginSignupScreenState extends State<LoginSignupScreen>
     _resendTimer?.cancel();
     _debounceTimer?.cancel();
     _resendCountdown = 0;
-    _firebaseVerificationId = null;
-    _firebaseResendToken = null;
   }
 
-  // ══════════════════════════════════════════════
+  // ══════════════════════════════════════════════════
   // BUILD
-  // ══════════════════════════════════════════════
+  // ══════════════════════════════════════════════════
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -779,7 +648,6 @@ class _LoginSignupScreenState extends State<LoginSignupScreen>
                                 _tabs(),
                                 const SizedBox(height: 28),
                                 _smartFields(),
-                                // ✅ FIX 1: تقليل المسافة بين الحقول والزر
                                 if (isLogin && _isEmail)
                                   _forgotBtn()
                                 else
@@ -805,9 +673,9 @@ class _LoginSignupScreenState extends State<LoginSignupScreen>
     );
   }
 
-  // ══════════════════════════════════════════════
+  // ══════════════════════════════════════════════════
   // SMART FIELDS
-  // ══════════════════════════════════════════════
+  // ══════════════════════════════════════════════════
   Widget _smartFields() {
     final showPassword = _isEmail && _secondFieldVisible;
     final showPhoneField = _isEmail && !isLogin && _phoneFieldVisible;
@@ -863,9 +731,8 @@ class _LoginSignupScreenState extends State<LoginSignupScreen>
                 ? (v) {
                     final val = v?.trim() ?? '';
                     if (val.isEmpty) return L.t('phone_required');
-                    if (!_phoneRegex.hasMatch(val)) {
+                    if (!_phoneRegex.hasMatch(val))
                       return L.t('phone_invalid_format');
-                    }
                     return null;
                   }
                 : null,
@@ -933,12 +800,10 @@ class _LoginSignupScreenState extends State<LoginSignupScreen>
             validator: (v) {
               final val = v?.trim() ?? '';
               if (val.isEmpty) return L.t('field_required');
-              if (_isPhone && !_phoneRegex.hasMatch(val)) {
+              if (_isPhone && !_phoneRegex.hasMatch(val))
                 return L.t('phone_invalid_format');
-              }
-              if (_isEmail && !_emailRegex.hasMatch(val)) {
+              if (_isEmail && !_emailRegex.hasMatch(val))
                 return L.t('email_invalid');
-              }
               return null;
             },
             decoration: InputDecoration(
@@ -1042,14 +907,12 @@ class _LoginSignupScreenState extends State<LoginSignupScreen>
     );
   }
 
-  // ✅ FIX 2: OTP footer — column بدل row لتفادي overflow في الشاشات الصغيرة
   Widget _otpFooter() {
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // سطر 1: أُرسل إلى + الرقم مع ellipsis
           Row(
             children: [
               Icon(
@@ -1072,7 +935,6 @@ class _LoginSignupScreenState extends State<LoginSignupScreen>
             ],
           ),
           const SizedBox(height: 4),
-          // سطر 2: زر إعادة الإرسال / العداد
           Align(
             alignment: AlignmentDirectional.centerEnd,
             child: _resendCountdown > 0
@@ -1100,10 +962,9 @@ class _LoginSignupScreenState extends State<LoginSignupScreen>
     );
   }
 
-  // ══════════════════════════════════════════════
+  // ══════════════════════════════════════════════════
   // UI WIDGETS
-  // ══════════════════════════════════════════════
-
+  // ══════════════════════════════════════════════════
   Widget _glowCircle(double size, Color color) => Container(
     width: size,
     height: size,
@@ -1184,9 +1045,8 @@ class _LoginSignupScreenState extends State<LoginSignupScreen>
             _resetOtpState();
             if (_isEmail && _secondFieldVisible) {
               Future.delayed(const Duration(milliseconds: 650), () {
-                if (mounted && _isEmail) {
+                if (mounted && _isEmail)
                   setState(() => _phoneFieldVisible = true);
-                }
               });
             }
           });
@@ -1470,9 +1330,9 @@ class _LoginSignupScreenState extends State<LoginSignupScreen>
     }
   }
 
-  // ══════════════════════════════════════════════
+  // ══════════════════════════════════════════════════
   // NICE MESSAGE BOTTOM SHEET
-  // ══════════════════════════════════════════════
+  // ══════════════════════════════════════════════════
   void _showNiceMessage({
     required AppMessageType type,
     required String title,

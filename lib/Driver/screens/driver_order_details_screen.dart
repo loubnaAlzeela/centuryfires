@@ -4,6 +4,7 @@ import '../../theme/app_colors.dart';
 import '../../utils/l.dart';
 import '../../utils/language_controller.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../widgets/swipe_to_confirm.dart';
 
 class DriverOrderDetailsScreen extends StatefulWidget {
   final String orderId;
@@ -44,12 +45,21 @@ class _DriverOrderDetailsScreenState extends State<DriverOrderDetailsScreen> {
   Future<void> _loadOrder() async {
     try {
       if (mounted) setState(() => loading = true);
-      print('Update finished');
+      debugPrint('Loading order: ${widget.orderId}');
       final res = await supabase
           .from('driver_order_details_view')
           .select('*')
           .eq('id', widget.orderId)
           .single();
+
+      try {
+        final orderRow = await supabase
+            .from('orders')
+            .select('driver_fee')
+            .eq('id', widget.orderId)
+            .single();
+        res['delivery_fee'] = orderRow['driver_fee'];
+      } catch (_) {}
 
       if (!mounted) return;
 
@@ -193,14 +203,30 @@ class _DriverOrderDetailsScreenState extends State<DriverOrderDetailsScreen> {
             return Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                CircleAvatar(
-                  radius: 16,
-                  backgroundColor: active
-                      ? AppColors.bg(context)
-                      : AppColors.textOnPrimary(context).withValues(alpha: .3),
+                AnimatedContainer(
+                  duration: const Duration(milliseconds: 300),
+                  height: active ? 36 : 28,
+                  width: active ? 36 : 28,
+                  decoration: BoxDecoration(
+                    color: active
+                        ? AppColors.bg(context)
+                        : AppColors.textOnPrimary(
+                            context,
+                          ).withValues(alpha: .3),
+                    shape: BoxShape.circle,
+                    boxShadow: active
+                        ? [
+                            BoxShadow(
+                              color: AppColors.bg(context).withOpacity(0.4),
+                              blurRadius: 8,
+                              spreadRadius: 2,
+                            ),
+                          ]
+                        : [],
+                  ),
                   child: Icon(
-                    Icons.check,
-                    size: 18,
+                    stepIndex == current ? Icons.delivery_dining : Icons.check,
+                    size: active ? 20 : 16,
                     color: active
                         ? AppColors.primary(context)
                         : AppColors.textOnPrimary(context),
@@ -223,12 +249,16 @@ class _DriverOrderDetailsScreenState extends State<DriverOrderDetailsScreen> {
           final active = lineIndex < current;
 
           return Expanded(
-            child: Container(
-              height: 3,
-              margin: const EdgeInsets.symmetric(horizontal: 6),
-              color: active
-                  ? AppColors.bg(context)
-                  : AppColors.textOnPrimary(context).withValues(alpha: .3),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 300),
+              height: active ? 4 : 2,
+              margin: const EdgeInsets.symmetric(horizontal: 4),
+              decoration: BoxDecoration(
+                color: active
+                    ? AppColors.bg(context)
+                    : AppColors.textOnPrimary(context).withValues(alpha: .3),
+                borderRadius: BorderRadius.circular(999),
+              ),
             ),
           );
         }),
@@ -288,10 +318,14 @@ class _DriverOrderDetailsScreenState extends State<DriverOrderDetailsScreen> {
 
   // ================= CUSTOMER =================
   Widget _customerCard() {
-    final phone = order?['customer_phone'] ?? '';
+    String phone = order?['customer_phone']?.toString() ?? '';
+    if (phone.isEmpty) {
+      phone = order?['phone']?.toString() ?? '';
+    }
+
     final lat = order?['lat'];
     final lng = order?['lng'];
-    final preferred = order?['preferred_contact'] ?? 'phone';
+    final preferred = (order?['preferred_contact'] ?? 'phone').toString();
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.fromLTRB(18, 24, 18, 18),
@@ -326,7 +360,7 @@ class _DriverOrderDetailsScreenState extends State<DriverOrderDetailsScreen> {
 
           Row(
             children: [
-              if (preferred == 'phone') ...[
+              if (preferred.contains('phone')) ...[
                 Expanded(
                   child: OutlinedButton.icon(
                     onPressed: () => _call(phone),
@@ -337,7 +371,10 @@ class _DriverOrderDetailsScreenState extends State<DriverOrderDetailsScreen> {
                 ),
               ],
 
-              if (preferred == 'whatsapp') ...[
+              if (preferred.contains('phone') && preferred.contains('whatsapp'))
+                const SizedBox(width: 8),
+
+              if (preferred.contains('whatsapp')) ...[
                 Expanded(
                   child: OutlinedButton.icon(
                     onPressed: () => _openWhatsApp(phone),
@@ -430,7 +467,10 @@ class _DriverOrderDetailsScreenState extends State<DriverOrderDetailsScreen> {
 
           // ================= Prices =================
           _priceRow(L.t('subtotal'), order?['subtotal']),
-          _priceRow(L.t('delivery_fee'), order?['delivery_fee']),
+          if ((order?['delivery_fee'] as num? ?? 0) > 0)
+            _priceRow(L.t('delivery_fee'), order?['delivery_fee']),
+          if ((order?['discount'] as num? ?? 0) > 0)
+            _priceRow(L.t('discount'), '-${order?['discount']}'),
           _priceRow(L.t('total'), order?['total'], bold: true),
 
           const SizedBox(height: 12),
@@ -487,6 +527,8 @@ class _DriverOrderDetailsScreenState extends State<DriverOrderDetailsScreen> {
     switch (method) {
       case 'cash':
         return L.t('cash_on_delivery');
+      case 'online':
+        return L.t('online_payment');
       case 'visa':
         return "Visa / MasterCard";
       case 'apple_pay':
@@ -494,12 +536,22 @@ class _DriverOrderDetailsScreenState extends State<DriverOrderDetailsScreen> {
       case 'google_pay':
         return "Google Pay";
       default:
-        return L.t('payment_method');
+        return method != null && method.isNotEmpty
+            ? method
+            : L.t('payment_method');
     }
   }
 
   //============================================================
   Future<void> _call(String phone) async {
+    if (phone.trim().isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(L.t('no_phone_provided'))));
+      }
+      return;
+    }
     final cleanPhone = phone.replaceAll(RegExp(r'[^\d+]'), '');
     final Uri url = Uri.parse("tel:$cleanPhone");
     if (await canLaunchUrl(url)) {
@@ -508,6 +560,14 @@ class _DriverOrderDetailsScreenState extends State<DriverOrderDetailsScreen> {
   }
 
   Future<void> _openWhatsApp(String phone) async {
+    if (phone.trim().isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(L.t('no_phone_provided'))));
+      }
+      return;
+    }
     // إزالة أية مسافات أو أحرف من رقم الهاتف
     final cleanPhone = phone.replaceAll(RegExp(r'[^\d+]'), '');
     final Uri url = Uri.parse("https://wa.me/$cleanPhone");
@@ -545,24 +605,36 @@ class _DriverOrderDetailsScreenState extends State<DriverOrderDetailsScreen> {
 
   //=========================================================================
   Widget _priceRow(String label, dynamic value, {bool bold = false}) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Text(
-          label,
-          style: TextStyle(
-            fontWeight: bold ? FontWeight.bold : FontWeight.normal,
-            color: AppColors.text(context),
+    final display =
+        (value == null ||
+            value.toString() == 'null' ||
+            value.toString() == '0' ||
+            value.toString() == '0.0')
+        ? '-'
+        : '${L.t('currency')} ${value}';
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 3),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            label,
+            style: TextStyle(
+              fontWeight: bold ? FontWeight.bold : FontWeight.normal,
+              color: AppColors.text(context),
+            ),
           ),
-        ),
-        Text(
-          (value ?? 0).toString(),
-          style: TextStyle(
-            fontWeight: bold ? FontWeight.bold : FontWeight.normal,
-            color: bold ? AppColors.primary(context) : AppColors.text(context),
+          Text(
+            display,
+            style: TextStyle(
+              fontWeight: bold ? FontWeight.bold : FontWeight.normal,
+              color: bold
+                  ? AppColors.primary(context)
+                  : AppColors.text(context),
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 
@@ -595,25 +667,11 @@ class _DriverOrderDetailsScreenState extends State<DriverOrderDetailsScreen> {
     return Container(
       padding: const EdgeInsets.all(16),
       color: AppColors.bg(context),
-      child: SizedBox(
-        width: double.infinity,
-        child: ElevatedButton(
-          style: ElevatedButton.styleFrom(
-            backgroundColor: AppColors.primary(context),
-            padding: const EdgeInsets.symmetric(vertical: 16),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-            ),
-          ),
-          onPressed: () => _updateStatus(nextStatus!),
-          child: Text(
-            buttonText,
-            style: TextStyle(
-              color: Colors.black, // على الأصفر أفضل
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-        ),
+      child: SwipeToConfirm(
+        text: buttonText,
+        baseColor: AppColors.primary(context),
+        trackColor: AppColors.card(context),
+        onConfirm: () => _updateStatus(nextStatus!),
       ),
     );
   }

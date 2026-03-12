@@ -7,6 +7,7 @@ enum AdminPage {
   drivers,
   ratings,
   loyalty,
+  rewards,
   analytics,
   settings,
   profile,

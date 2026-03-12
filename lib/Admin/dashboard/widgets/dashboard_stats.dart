@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../services/admin_dashboard_service.dart';
 import 'dashboard_stat_card.dart';
 import '../../../utils/l.dart';
+import '../../navigation/admin_page.dart';
 
 class DashboardStats extends StatefulWidget {
-  const DashboardStats({super.key});
+  final void Function(AdminPage)? onNavigate;
+  const DashboardStats({super.key, this.onNavigate});
 
   @override
   State<DashboardStats> createState() => _DashboardStatsState();
@@ -12,17 +15,47 @@ class DashboardStats extends StatefulWidget {
 
 class _DashboardStatsState extends State<DashboardStats> {
   late Future<AdminDashboardStats> _statsFuture;
+  RealtimeChannel? _dashboardChannel;
 
   @override
   void initState() {
     super.initState();
-    _statsFuture = AdminDashboardService().fetchStats();
+    _refresh();
+    _listenToEvents();
+  }
+
+  void _listenToEvents() {
+    _dashboardChannel = Supabase.instance.client
+        .channel('admin_dashboard_stats_realtime')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'orders',
+          callback: (_) {
+            if (mounted) _refresh();
+          },
+        )
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'driver_profiles',
+          callback: (_) {
+            if (mounted) _refresh();
+          },
+        )
+        .subscribe();
   }
 
   void _refresh() {
     setState(() {
       _statsFuture = AdminDashboardService().fetchStats();
     });
+  }
+
+  @override
+  void dispose() {
+    _dashboardChannel?.unsubscribe();
+    super.dispose();
   }
 
   @override
@@ -82,6 +115,7 @@ class _DashboardStatsState extends State<DashboardStats> {
     AdminDashboardStats stats,
     BuildContext context,
   ) {
+    final navigate = widget.onNavigate;
     return [
       // 🟡 Today's Orders
       DashboardStatCard(
@@ -89,6 +123,7 @@ class _DashboardStatsState extends State<DashboardStats> {
         value: stats.todayOrders.toString(),
         icon: Icons.receipt_long,
         color: Colors.amber,
+        onTap: navigate != null ? () => navigate(AdminPage.orders) : null,
       ),
 
       // 🔵 Active Orders
@@ -97,6 +132,7 @@ class _DashboardStatsState extends State<DashboardStats> {
         value: stats.activeOrders.toString(),
         icon: Icons.timelapse,
         color: Colors.blue,
+        onTap: navigate != null ? () => navigate(AdminPage.orders) : null,
       ),
 
       // 🟢 Completed
@@ -105,6 +141,7 @@ class _DashboardStatsState extends State<DashboardStats> {
         value: stats.completedOrders.toString(),
         icon: Icons.check_circle,
         color: Colors.green,
+        onTap: navigate != null ? () => navigate(AdminPage.orders) : null,
       ),
 
       // 🔴 Cancelled
@@ -113,12 +150,13 @@ class _DashboardStatsState extends State<DashboardStats> {
         value: stats.cancelledOrders.toString(),
         icon: Icons.cancel,
         color: Colors.red,
+        onTap: navigate != null ? () => navigate(AdminPage.orders) : null,
       ),
 
       // 🟣 Revenue (منسّق + SAR ثابت)
       DashboardStatCard(
         title: L.t('revenue_this_month'),
-        value: "${stats.revenue.toStringAsFixed(2)} SAR",
+        value: "SAR ${stats.revenue.toStringAsFixed(2)}",
         icon: Icons.payments,
         color: Colors.purple,
       ),
@@ -129,6 +167,7 @@ class _DashboardStatsState extends State<DashboardStats> {
         value: stats.driversOnline.toString(),
         icon: Icons.delivery_dining,
         color: Colors.orange,
+        onTap: navigate != null ? () => navigate(AdminPage.drivers) : null,
       ),
     ];
   }

@@ -133,9 +133,64 @@ class _RewardScreenState extends State<RewardScreen> {
       await _loadData();
 
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(L.t('reward_redeemed'))));
+
+      // إذا المكافأة مرتبطة بكوبون، نعرض الكود للمستخدم
+      if (reward.promotionId != null && reward.promotionId!.isNotEmpty) {
+        final couponCode = await _rewardService.getCouponCodeForReward(reward.promotionId!);
+        if (couponCode != null && mounted) {
+          showDialog(
+            context: context,
+            builder: (ctx) => AlertDialog(
+              backgroundColor: AppColors.card(context),
+              title: Row(
+                children: [
+                  Icon(Icons.card_giftcard, color: AppColors.primary(context)),
+                  const SizedBox(width: 8),
+                  Text(L.t('reward_redeemed'), style: TextStyle(color: AppColors.text(context), fontSize: 16)),
+                ],
+              ),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    L.t('coupon_code_info'),
+                    style: TextStyle(color: AppColors.textGrey(context), fontSize: 14),
+                  ),
+                  const SizedBox(height: 16),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+                    decoration: BoxDecoration(
+                      color: AppColors.primary(context).withOpacity(0.15),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: AppColors.primary(context)),
+                    ),
+                    child: SelectableText(
+                      couponCode,
+                      style: TextStyle(
+                        color: AppColors.primary(context),
+                        fontWeight: FontWeight.bold,
+                        fontSize: 22,
+                        letterSpacing: 2,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  child: Text(L.t('ok'), style: TextStyle(color: AppColors.primary(context))),
+                ),
+              ],
+            ),
+          );
+          return;
+        }
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(L.t('reward_redeemed'))),
+      );
     } catch (_) {
       _showError();
     }

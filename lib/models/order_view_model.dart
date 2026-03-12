@@ -20,6 +20,10 @@ class OrderViewModel {
   // (اختياري للتفاصيل تحت الخريطة)
   final double subtotal;
   final double discount;
+  final double discountCoupon;
+  final double discountBigOrder;
+  final String? appliedCouponCode;
+  final double deliveryFee;
   final double total;
   final String? paymentMethod;
   final DateTime? createdAt;
@@ -44,6 +48,10 @@ class OrderViewModel {
 
     required this.subtotal,
     required this.discount,
+    this.discountCoupon = 0,
+    this.discountBigOrder = 0,
+    this.appliedCouponCode,
+    required this.deliveryFee,
     required this.total,
     this.paymentMethod,
     this.createdAt,
@@ -79,6 +87,10 @@ class OrderViewModel {
 
       subtotal: (map['subtotal'] as num?)?.toDouble() ?? 0,
       discount: (map['discount'] as num?)?.toDouble() ?? 0,
+      discountCoupon: (map['discount_coupon'] as num?)?.toDouble() ?? 0,
+      discountBigOrder: (map['discount_big_order'] as num?)?.toDouble() ?? 0,
+      appliedCouponCode: map['applied_coupon_code']?.toString(),
+      deliveryFee: (map['driver_fee'] as num?)?.toDouble() ?? 0,
       total: (map['total'] as num?)?.toDouble() ?? 0,
       paymentMethod: map['payment_method']?.toString(),
       createdAt: map['created_at'] != null

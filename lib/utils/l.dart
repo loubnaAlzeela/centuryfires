@@ -57,6 +57,23 @@ class L {
     'success': ['Success', 'تم بنجاح'],
     'info': ['Info', 'معلومة'],
 
+    // Driver Dashboard
+    'ready_for_orders': ['Ready for orders', 'جاهز لاستلام الطلبات'],
+    'not_ready': ['Not Ready', 'غير جاهز'],
+    'daily_mission_overview': [
+      'Daily Mission Overview',
+      'نظرة عامة على مهام اليوم',
+    ],
+    'successful_deliveries': [
+      'Successful Deliveries',
+      'عمليات التوصيل الناجحة',
+    ],
+    'pending_orders': ['Pending Orders', 'الطلبات المعلقة'],
+    'pickup_from': ['Pickup from', 'استلام من'],
+    'deliver_to': ['Deliver to', 'توصيل إلى'],
+    'open': ['Open', 'افتح التفاصيل'],
+    'no_phone_provided': ['No phone provided', 'لم يتم توفير رقم هاتف'],
+
     // Auth general
     'err_general': ['Something went wrong', 'حدث خطأ غير متوقع'],
     'err_network': [
@@ -255,7 +272,7 @@ class L {
     'dinein_desc': ['Eat at restaurant', 'تناول الطعام داخل المطعم'],
     'delivery_address': ['Delivery Address', 'عنوان التوصيل'],
     'payment_method': ['Payment Method', 'طريقة الدفع'],
-    'cash': ['Cash', 'نقدًا'],
+    'cash': ['Cash', 'نقداً'],
     'online_payment': ['online payment', 'الدفع عبر البطاقة'],
     'online_payment_desc': [
       'Pay securely using your card',
@@ -282,7 +299,7 @@ class L {
     'secured_by_moyasar': ['Secured by Moyasar', 'مدفوعات آمنة عبر ميسر'],
     'payment_cancelled': ['Payment was cancelled', 'تم إلغاء الدفع'],
     'cash_desc': ['Pay on delivery', 'الدفع عند الاستلام'],
-    'coupon': ['Coupon', 'كوبون'],
+
     'enter_coupon': ['Enter coupon code', 'أدخل رمز الكوبون'],
     'apply': ['Apply', 'تطبيق'],
     'coupon_applied': ['Coupon applied', 'تم تطبيق الكوبون'],
@@ -398,13 +415,28 @@ class L {
       'Loyalty and reward programs are subject to restaurant terms and may not apply to all items or branches.',
       'تخضع برامج الولاء والمكافآت لشروط المطعم وقد لا تشمل جميع الأصناف أو الفروع.',
     ],
+    // sort
+    'sort_newest': ['Newest', 'الأحدث'],
+    'sort_oldest': ['Oldest', 'الأقدم'],
+    'sort_highest': ['Highest Rating', 'الأعلى تقييماً'],
+    'sort_lowest': ['Lowest Rating', 'الأدنى تقييماً'],
     //rewards
     'rewards': ['Rewards', 'المكافآت'],
+    'add_new_reward': ['Add New Reward', 'إضافة مكافأة جديدة'],
+    'edit_reward': ['Edit Reward', 'تعديل المكافأة'],
+    'select_coupon': ['Select Coupon', 'اختر كوبون الخصم'],
+    'none': ['None', 'بدون كوبون'],
     'available_rewards': ['Available Rewards', 'المكافآت المتاحة'],
     'reward_redeemed': [
       'Reward redeemed successfully 🎉',
       'تم استبدال المكافأة بنجاح 🎉',
     ],
+    'coupon_code_info': [
+      'Use this coupon code at checkout to get your discount:',
+      'استخدم كود الكوبون هذا عند الدفع للحصول على خصمك:',
+    ],
+    'ok': ['OK', 'حسناً'],
+    'coupon': ['Coupon', 'كوبون'],
 
     //Address
     'address': ['Address', 'عنوان'],
@@ -472,6 +504,7 @@ class L {
     'home': ['Home', 'الرئيسية'],
     // CartItemCard
     'cart_item_card_currency': ['SAR', 'ريال'],
+    'currency': ['SAR', 'ريال'],
 
     // ===== LoyaltyCard =====
     'loyalty_status': ['Loyalty Status', 'حالة الولاء'],
@@ -593,6 +626,9 @@ class L {
     'customer': ['Customer', 'العميل'],
     'status': ['Status', 'الحالة'],
     'change_status': ['Change Status', 'تغيير الحالة'],
+    'customer_details': ['Customer Details', 'تفاصيل العميل'],
+    'details': ['Details', 'تفاصيل'],
+    'discount_promo': ['Discount (Coupon/Promo)', 'الخصم (كوبون/عرض)'],
 
     // ================= PROMOTION TYPES =================
     'promo_type_banner': ['Banner', 'بنر'],
@@ -689,8 +725,6 @@ class L {
     'unanswered': ['Unanswered', 'لم يتم الرد'],
     'answered': ['Answered', 'تم الرد'],
     'negative_reviews': ['Negative', 'سلبية'],
-    'sort_highest': ['Highest Rating', 'الأعلى تقييماً'],
-    'sort_lowest': ['Lowest Rating', 'الأقل تقييماً'],
 
     //=========== Admin Loyalty ============
     'points_settings': ['Points Settings', 'إعدادات النقاط'],
@@ -895,7 +929,7 @@ class L {
     'cash_on_delivery': ['Cash on Delivery', 'الدفع عند الاستلام'],
     'cash_on_delivery_desc': [
       'Allow cash payment upon delivery',
-      'السماح بالدفع نقدًا عند الاستلام',
+      'السماح بالدفع نقداً عند الاستلام',
     ],
     'big_order_discount': ['Big Order Discount', 'خصم الطلب الكبير'],
 
@@ -987,6 +1021,23 @@ class L {
     'select_status': ['Select Status', 'اختر الحالة'],
     'select_driver': ['Select Driver', 'اختر سائق'],
     'driver_information': ['Driver Information', 'معلومات السائق'],
+    'tap_to_start': ['Tap to go online', 'اضغط للبدء'],
+    'shift_time': ['Shift time', 'وقت الوردية'],
+    'active_order': ['Active order', 'طلب نشط'],
+    'no_new_orders': ['No new orders', 'لا توجد طلبات'],
+    'orders_waiting_acceptance': [
+      'Waiting for your acceptance',
+      'طلبات تنتظر قبولك',
+    ],
+    'will_notify_when_new': [
+      'We\'ll notify you when a new order arrives',
+      'سنبلغك عند وصول طلب جديد',
+    ],
+    'view': ['View', 'عرض'],
+    'tap_to_open_details': ['Tap to open details', 'اضغط لفتح التفاصيل'],
+    'before': ['before', 'قبل'],
+    'min': ['min', 'د'],
+    'hour': ['hr', 'س'],
 
     //================= Dashbaord =================
     'todays_orders': ['Today\'s Orders', 'طلبات اليوم'],
@@ -1013,9 +1064,6 @@ class L {
     'vehicle_car': ['Car', 'سيارة'],
     'vehicle_bicycle': ['Bicycle', 'دراجة هوائية'],
 
-    'ready_for_orders': ['Ready for orders', 'جاهز لاستلام الطلبات'],
-    'not_ready': ['Not ready', 'غير جاهز'],
-
     'new_orders': ['New Orders', 'طلبات جديدة'],
 
     'accept': ['Accept', 'قبول'],
@@ -1035,9 +1083,6 @@ class L {
     'accepted': ['Accepted', 'تم القبول'],
     'picked_up': ['Picked Up', 'تم الاستلام'],
     'on_the_way': ['On the Way', 'في الطريق'],
-
-    'pickup_from': ['Pickup From', 'الاستلام من'],
-    'deliver_to': ['Deliver To', 'التوصيل إلى'],
 
     'call': ['Call', 'اتصال'],
     'navigate': ['Navigate', 'الانتقال'],

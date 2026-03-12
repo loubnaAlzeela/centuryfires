@@ -199,8 +199,9 @@ class _MealsList extends StatelessWidget {
                                   )
                                   .fold(0, (sum, l) => sum + l.quantity);
 
-                              if (mealCount == 0)
+                              if (mealCount == 0) {
                                 return const SizedBox.shrink();
+                              }
 
                               return Container(
                                 padding: const EdgeInsets.all(4),

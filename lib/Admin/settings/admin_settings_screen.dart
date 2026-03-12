@@ -442,13 +442,13 @@ class _AdminSettingsScreenState extends State<AdminSettingsScreen> {
         ),
         actions: [
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 9),
             child: ElevatedButton.icon(
               onPressed: (!_dirty || _saving || _loading) ? null : _save,
               icon: _saving
                   ? SizedBox(
                       width: 18,
-                      height: 30,
+                      height: 18,
                       child: CircularProgressIndicator(
                         strokeWidth: 2,
                         valueColor: AlwaysStoppedAnimation(
@@ -458,16 +458,19 @@ class _AdminSettingsScreenState extends State<AdminSettingsScreen> {
                     )
                   : Icon(
                       Icons.save_rounded,
-                      size: 20,
+                      size: 18,
                       color: AppColors.textOnPrimary(context),
                     ),
-              label: Text(
-                L.t('save_changes'),
-                style: TextStyle(
-                  color: AppColors.textOnPrimary(context),
-                  fontWeight: FontWeight.w900,
-                  fontSize: 14,
-                  letterSpacing: 0.5,
+              label: FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Text(
+                  L.t('save_changes'),
+                  style: TextStyle(
+                    color: AppColors.textOnPrimary(context),
+                    fontWeight: FontWeight.w900,
+                    fontSize: 13,
+                    letterSpacing: 0.3,
+                  ),
                 ),
               ),
               style: ElevatedButton.styleFrom(
@@ -480,8 +483,8 @@ class _AdminSettingsScreenState extends State<AdminSettingsScreen> {
                   borderRadius: BorderRadius.circular(14),
                 ),
                 padding: const EdgeInsets.symmetric(
-                  horizontal: 20,
-                  vertical: 10,
+                  horizontal: 12,
+                  vertical: 8,
                 ),
               ),
             ),

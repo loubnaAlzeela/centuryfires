@@ -82,7 +82,7 @@ class AdminDashboardService {
             .lt('created_at', startOfNextMonth.toIso8601String()),
 
         // 5 - drivers online
-        _supabase.from('driver_profiles').select('id').eq('is_active', true),
+        _supabase.from('driver_profiles').select('id').eq('status', 'online'),
       ]);
 
       final revenue = (results[4] as List).fold<double>(

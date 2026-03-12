@@ -188,6 +188,18 @@ class _OrdersListScreenState extends State<OrdersListScreen> {
 
     final total = double.tryParse(order['total']?.toString() ?? '');
 
+    final createdAtRaw = order['created_at']?.toString() ?? '';
+    String timeFormatted = '';
+    if (createdAtRaw.isNotEmpty) {
+      try {
+        final parsed = DateTime.parse(createdAtRaw).toLocal();
+        final hour = parsed.hour == 0 ? 12 : (parsed.hour > 12 ? parsed.hour - 12 : parsed.hour);
+        final amPm = parsed.hour >= 12 ? 'PM' : 'AM';
+        final minutes = parsed.minute.toString().padLeft(2, '0');
+        timeFormatted = '$hour:$minutes $amPm';
+      } catch (_) {}
+    }
+
     return Container(
       margin: const EdgeInsets.only(bottom: 14),
       child: IntrinsicHeight(
@@ -219,13 +231,30 @@ class _OrdersListScreenState extends State<OrdersListScreen> {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Text(
-                          '#$shortId',
-                          style: TextStyle(
-                            color: AppColors.primary(context),
-                            fontWeight: FontWeight.bold,
-                            fontSize: 16,
-                          ),
+                        Row(
+                          children: [
+                            Text(
+                              '#$shortId',
+                              style: TextStyle(
+                                color: AppColors.primary(context),
+                                fontWeight: FontWeight.bold,
+                                fontSize: 16,
+                              ),
+                            ),
+                            if (timeFormatted.isNotEmpty) ...[
+                              const SizedBox(width: 8),
+                              Icon(Icons.access_time_rounded, size: 14, color: AppColors.textGrey(context)),
+                              const SizedBox(width: 3),
+                              Text(
+                                timeFormatted,
+                                style: TextStyle(
+                                  color: AppColors.textGrey(context),
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
+                          ],
                         ),
                         Icon(_statusIcon(status), color: _statusColor(status)),
                       ],

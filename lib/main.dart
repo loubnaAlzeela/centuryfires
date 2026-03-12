@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter_native_splash/flutter_native_splash.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
-import 'package:firebase_core/firebase_core.dart';
+
 import 'theme/theme_controller.dart';
 import 'utils/cart_controller.dart';
 import 'utils/language_controller.dart';
@@ -10,13 +10,14 @@ import 'screens/home_screen.dart';
 import 'Admin/app/admin_app.dart';
 import 'driver/driver_app.dart';
 import 'driver/services/driver_tracking_service.dart';
+import 'Admin/services/admin_background_service.dart';
 import 'screens/auth/reset_password_screen.dart';
 
 import 'dart:async';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp();
+
   final widgetsBinding = WidgetsFlutterBinding.ensureInitialized();
   FlutterNativeSplash.preserve(widgetsBinding: widgetsBinding);
   const supabaseUrl = 'https://vznqsmzqvliarvfcpaaq.supabase.co';
@@ -27,7 +28,26 @@ Future<void> main() async {
   await CartController.instance.loadCart();
   await ThemeController.loadTheme();
   await LanguageController.loadLanguage();
-  await DriverTrackingService.init();
+
+  // Initialize correct background service based on role
+  final session = Supabase.instance.client.auth.currentSession;
+  if (session != null) {
+    try {
+      final userRes = await Supabase.instance.client
+          .from('users')
+          .select('role')
+          .eq('auth_id', session.user.id)
+          .maybeSingle();
+      if (userRes != null) {
+        if (userRes['role'] == 'admin') {
+          await AdminBackgroundService.init();
+        } else if (userRes['role'] == 'driver') {
+          await DriverTrackingService.init();
+        }
+      }
+    } catch (_) {}
+  }
+
   FlutterNativeSplash.remove();
   runApp(const MyApp());
 }
@@ -92,6 +112,11 @@ class _InitialScreenState extends State<InitialScreen> {
         return;
       }
 
+      if (event == AuthChangeEvent.signedOut) {
+        AdminBackgroundService.stop();
+        DriverTrackingService.stop();
+      }
+
       // أي login / logout طبيعي
       setState(() => _reloadKey++);
     });
@@ -141,6 +166,7 @@ class _InitialScreenState extends State<InitialScreen> {
     final String userId = userRes['id'];
 
     if (role == 'admin') {
+      AdminBackgroundService.start();
       return const AdminApp();
     }
 
@@ -151,7 +177,7 @@ class _InitialScreenState extends State<InitialScreen> {
           .eq('id', userId)
           .maybeSingle();
 
-      if (driverRes != null && driverRes['is_active'] == true) {
+      if (driverRes != null) {
         return const DriverApp();
       }
     }

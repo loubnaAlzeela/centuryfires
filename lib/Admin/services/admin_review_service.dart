@@ -90,4 +90,20 @@ class AdminReviewService {
       return false;
     }
   }
+  // ============================
+  // Get user details by user_id
+  // ============================
+  Future<Map<String, dynamic>?> getUserDetails(String userId) async {
+    try {
+      final data = await _client
+          .from('users')
+          .select('id, name, email, phone')
+          .eq('id', userId)
+          .maybeSingle();
+      return data;
+    } catch (e) {
+      debugPrint('getUserDetails error: $e');
+      return null;
+    }
+  }
 }

@@ -19,7 +19,8 @@ class RewardService {
         title_en,
         description_ar,
         description_en,
-        created_at
+        created_at,
+        promotion_id
       ''')
         .eq('is_active', true)
         .order('points_required', ascending: true);
@@ -72,5 +73,23 @@ class RewardService {
   /// 🔹 صرف المكافأة (RPC — آمن)
   Future<void> redeemReward(String rewardId) async {
     await _supabase.rpc('redeem_reward_v2', params: {'p_reward_id': rewardId});
+  }
+
+  /// 🔹 جلب كود الكوبون المرتبط بالمكافأة
+  Future<String?> getCouponCodeForReward(String promotionId) async {
+    try {
+      final promo = await _supabase
+          .from('promotions')
+          .select('code')
+          .eq('id', promotionId)
+          .maybeSingle();
+
+      if (promo != null && promo['code'] != null) {
+        return promo['code'] as String;
+      }
+    } catch (e) {
+      // ignore
+    }
+    return null;
   }
 }

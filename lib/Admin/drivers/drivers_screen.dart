@@ -24,10 +24,33 @@ class _DriversScreenState extends State<DriversScreen> {
   int busyCount = 0;
   int offlineCount = 0;
 
+  RealtimeChannel? _driversChannel;
+
   @override
   void initState() {
     super.initState();
     fetchDrivers();
+    _listenToDrivers();
+  }
+
+  void _listenToDrivers() {
+    _driversChannel = supabase
+        .channel('admin_drivers_realtime')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'driver_profiles',
+          callback: (_) {
+            if (mounted) fetchDrivers();
+          },
+        )
+        .subscribe();
+  }
+
+  @override
+  void dispose() {
+    _driversChannel?.unsubscribe();
+    super.dispose();
   }
 
   // ================= FETCH DRIVERS =================
@@ -70,21 +93,28 @@ class _DriversScreenState extends State<DriversScreen> {
     offlineCount = 0;
 
     for (var d in drivers) {
-      final profile = d['driver_profiles'];
-      if (profile == null || profile['is_active'] != true) continue;
+      var profile = d['driver_profiles'];
+      if (profile is List) profile = profile.isNotEmpty ? profile.first : null;
+      
+      final status = profile?['status'] ?? 'offline';
 
-      final status = profile['status'] ?? 'offline';
-
-      if (status == 'online') onlineCount++;
-      if (status == 'busy') busyCount++;
-      if (status == 'offline') offlineCount++;
+      if (status == 'online') {
+        onlineCount++;
+      } else if (status == 'busy') {
+        busyCount++;
+      } else {
+        offlineCount++;
+      }
     }
   }
 
   List<Map<String, dynamic>> get filteredDrivers {
     return drivers.where((d) {
       final name = (d['name'] ?? '').toLowerCase();
-      final status = d['driver_profiles']?['status'] ?? '';
+      var profile = d['driver_profiles'];
+      if (profile is List) profile = profile.isNotEmpty ? profile.first : null;
+      
+      final status = profile?['status'] ?? 'offline';
 
       final matchesSearch = name.contains(searchQuery.toLowerCase());
       final matchesStatus = filterStatus == 'all' || status == filterStatus;
@@ -165,7 +195,9 @@ class _DriversScreenState extends State<DriversScreen> {
                             itemCount: filteredDrivers.length,
                             itemBuilder: (context, index) {
                               final d = filteredDrivers[index];
-                              final profile = d['driver_profiles'] ?? {};
+                              var profile = d['driver_profiles'];
+                              if (profile is List) profile = profile.isNotEmpty ? profile.first : null;
+                              profile ??= {};
 
                               return ListTile(
                                 title: Text(

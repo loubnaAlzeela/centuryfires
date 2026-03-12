@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:audioplayers/audioplayers.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../navigation/admin_page.dart';
 import '../dashboard/dashboard_screen.dart';
@@ -10,6 +12,7 @@ import '../promotions/promotionsscreen.dart';
 import '../customers/customers_screen.dart';
 import '../ratings/adminreviewsscreen.dart';
 import '../loyalty/admin_loyalty_screen.dart';
+import '../rewards/admin_rewards_screen.dart';
 import '../analytics/analytics_screen.dart';
 import '../settings/admin_settings_screen.dart';
 import '../admin_profile_screen.dart';
@@ -27,6 +30,53 @@ class AdminLayout extends StatefulWidget {
 class _AdminLayoutState extends State<AdminLayout> {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   AdminPage _currentPage = AdminPage.dashboard;
+
+  final AudioPlayer _player = AudioPlayer();
+  late final RealtimeChannel _globalOrdersChannel;
+  DateTime? _lastSoundTime;
+
+  @override
+  void initState() {
+    super.initState();
+    _listenToNewOrdersGlobally();
+  }
+
+  void _listenToNewOrdersGlobally() {
+    _globalOrdersChannel = Supabase.instance.client.channel('global_admin_orders');
+    _globalOrdersChannel
+        .onPostgresChanges(
+          event: PostgresChangeEvent.insert,
+          schema: 'public',
+          table: 'orders',
+          callback: (payload) {
+            final now = DateTime.now();
+            if (_lastSoundTime == null || now.difference(_lastSoundTime!).inSeconds > 2) {
+              _playNotificationSound();
+              _lastSoundTime = now;
+            }
+          },
+        )
+        .subscribe();
+  }
+
+  Future<void> _playNotificationSound() async {
+    try {
+      await _player.setReleaseMode(ReleaseMode.stop);
+      await _player.play(
+        AssetSource('sounds/new_order.mp3'),
+        mode: PlayerMode.lowLatency,
+      );
+    } catch (e) {
+      debugPrint("Global Sound error: $e");
+    }
+  }
+
+  @override
+  void dispose() {
+    Supabase.instance.client.removeChannel(_globalOrdersChannel);
+    _player.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -171,7 +221,9 @@ class _AdminLayoutState extends State<AdminLayout> {
   Widget _buildPage(AdminPage page) {
     switch (page) {
       case AdminPage.dashboard:
-        return const DashboardScreen();
+        return DashboardScreen(
+          onNavigate: (page) => setState(() => _currentPage = page),
+        );
 
       case AdminPage.orders:
         return const OrdersListScreen();
@@ -193,6 +245,9 @@ class _AdminLayoutState extends State<AdminLayout> {
 
       case AdminPage.loyalty:
         return const AdminLoyaltyScreen();
+
+      case AdminPage.rewards:
+        return const AdminRewardsScreen();
 
       case AdminPage.analytics:
         return const AnalyticsScreen();
@@ -231,6 +286,9 @@ class _AdminLayoutState extends State<AdminLayout> {
 
       case AdminPage.loyalty:
         return L.t('loyalty');
+
+      case AdminPage.rewards:
+        return L.t('rewards');
 
       case AdminPage.analytics:
         return L.t('analytics');
