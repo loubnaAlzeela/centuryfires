@@ -4,6 +4,7 @@ import '../../../theme/app_colors.dart';
 import '../../../Admin/services/meals_service.dart';
 import '../screens/meal_details_sheet.dart';
 import 'add_category_sheet.dart';
+import '../../../utils/l.dart';
 
 class AddMealSheet extends StatefulWidget {
   const AddMealSheet({super.key});
@@ -237,7 +238,7 @@ class _AddMealSheetState extends State<AddMealSheet> {
             TextField(
               controller: priceCtrl,
               keyboardType: TextInputType.number,
-              decoration: _input('Base price (SAR)'),
+              decoration: _input('Base price (${L.t('currency')})'),
             ),
 
             const SizedBox(height: 20),

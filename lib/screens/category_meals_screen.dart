@@ -251,7 +251,7 @@ class _MealsList extends StatelessWidget {
                           ),
                           const SizedBox(height: 6),
                           Text(
-                            '${meal.basePrice} SAR',
+                            '${meal.basePrice} ${L.t('currency')}',
                             style: TextStyle(
                               color: AppColors.primary(context),
                               fontSize: 16,

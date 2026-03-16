@@ -888,7 +888,7 @@ class L {
     'meal_name_ar': ['Name (AR)', 'اسم الوجبة'],
     'meal_description_en': ['Description (EN)', 'الوصف (إنجليزي)'],
     'meal_description_ar': ['Description (AR)', 'الوصف'],
-    'meal_base_price': ['Base price (SAR)', 'السعر الأساسي (ريال)'],
+    'meal_base_price': ['Base price', 'السعر الأساسي'],
     'saving': ['Saving...', 'جاري الحفظ...'],
     'no_sizes_found': ['No sizes found', 'لا يوجد أحجام'],
     'price_label': ['Price', 'السعر'],

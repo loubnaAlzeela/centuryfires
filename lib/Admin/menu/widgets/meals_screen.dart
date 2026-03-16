@@ -4,6 +4,7 @@ import '../screens/meal_details_sheet.dart';
 import 'category_chip.dart';
 import '../../services/meals_service.dart';
 import '../../services/categories_service.dart';
+import '../../../utils/l.dart';
 
 class MealsScreen extends StatefulWidget {
   const MealsScreen({super.key});
@@ -240,7 +241,7 @@ class MealCard extends StatelessWidget {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      '$price SAR',
+                      '$price ${L.t('currency')}',
                       style: TextStyle(
                         fontSize: 13,
                         color: AppColors.textGrey(context),

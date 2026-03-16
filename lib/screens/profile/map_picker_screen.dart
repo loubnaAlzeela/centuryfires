@@ -32,6 +32,11 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
   }
 
   Future<void> _initLocation() async {
+    // 1. عرض موقع افتراضي سريع (الرياض على سبيل المثال) لتفتح الخريطة فوراً
+    if (mounted) {
+      setState(() => _center = const LatLng(24.7136, 46.6753));
+    }
+
     final serviceEnabled = await Geolocator.isLocationServiceEnabled();
     if (!serviceEnabled) return;
 
@@ -41,12 +46,23 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
     }
     if (permission == LocationPermission.deniedForever) return;
 
-    final pos = await Geolocator.getCurrentPosition(
+    // 2. محاولة جلب آخر موقع معروف لأنه أسرع جداً
+    Position? pos = await Geolocator.getLastKnownPosition();
+    
+    // 3. إذا لم يوجد موقع مسجل، نطلب الموقع الحالي
+    pos ??= await Geolocator.getCurrentPosition(
       desiredAccuracy: LocationAccuracy.high,
     );
 
     if (!mounted) return;
-    setState(() => _center = LatLng(pos.latitude, pos.longitude));
+    setState(() {
+      _center = LatLng(pos!.latitude, pos!.longitude);
+    });
+
+    // تحريك الكاميرا للموقع الجديد
+    _mapController?.animateCamera(
+      CameraUpdate.newLatLngZoom(_center!, 16),
+    );
   }
 
   Future<Map<String, dynamic>?> _reverseGeocode(LatLng location) async {

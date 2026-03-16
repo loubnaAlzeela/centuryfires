@@ -153,10 +153,10 @@ class _DashboardStatsState extends State<DashboardStats> {
         onTap: navigate != null ? () => navigate(AdminPage.orders) : null,
       ),
 
-      // 🟣 Revenue (منسّق + SAR ثابت)
+      // 🟣 Revenue
       DashboardStatCard(
         title: L.t('revenue_this_month'),
-        value: "SAR ${stats.revenue.toStringAsFixed(2)}",
+        value: "${L.t('currency')} ${stats.revenue.toStringAsFixed(2)}",
         icon: Icons.payments,
         color: Colors.purple,
       ),

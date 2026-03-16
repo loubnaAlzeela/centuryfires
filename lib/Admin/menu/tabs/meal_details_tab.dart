@@ -76,7 +76,7 @@ class _MealDetailsTabState extends State<MealDetailsTab> {
           _field(L.t('meal_name_ar'), nameArCtrl, rtl: true),
           _field(L.t('meal_description_en'), descEnCtrl, lines: 3),
           _field(L.t('meal_description_ar'), descArCtrl, rtl: true, lines: 3),
-          _field(L.t('meal_base_price'), priceCtrl, number: true),
+          _field('${L.t('meal_base_price')} (${L.t('currency')})', priceCtrl, number: true),
 
           const SizedBox(height: 16),
           ElevatedButton(

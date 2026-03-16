@@ -8,7 +8,7 @@ class LoyaltyAdminService {
   // ===============================
 
   Future<int> getTotalMembers() async {
-    final data = await _supabase.from('user_loyalty').select('user_id');
+    final data = await _supabase.from('users').select('id');
     return data.length;
   }
 
@@ -99,14 +99,28 @@ class LoyaltyAdminService {
   }
 
   Future<int> getTotalPointsRedeemed() async {
-    final data = await _supabase
-        .from('loyalty_points_log')
-        .select('points')
-        .lt('points', 0);
-
+    // إذا كان هناك خطأ بالصلاحيات أو الاستعلام، دعه يظهر بدلاً من أن يرجع 0 في الصمت
+    final res = await _supabase.from('reward_redemptions').select('points_spent');
+    
     int total = 0;
-    for (var row in data) {
-      total += (row['points'] as int).abs();
+    for (var row in res) {
+      if (row['points_spent'] != null) {
+        total += (row['points_spent'] as num).toInt();
+      }
+    }
+
+    // إذا كان المجموع 0 (ممكن العمود مضاف حديثاًوكل القيم الماضية بداخله NULL)
+    // نرجع للجدول القديم كخطة بديلة حتى لا تكون الشاشة فارغة
+    if (total == 0) {
+      final fallbackRes = await _supabase
+          .from('loyalty_points_log')
+          .select('points')
+          .lt('points', 0);
+      for (var row in fallbackRes) {
+        if (row['points'] != null) {
+          total += (row['points'] as num).toInt().abs();
+        }
+      }
     }
 
     return total;

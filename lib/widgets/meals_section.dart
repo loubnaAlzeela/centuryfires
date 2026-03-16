@@ -243,7 +243,7 @@ class _AnimatedMealCardState extends State<_AnimatedMealCard> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            '${meal.basePrice} SAR',
+                            '${meal.basePrice} ${L.t('currency')}',
                             style: TextStyle(
                               color: AppColors.primary(context),
                               fontSize: 16,

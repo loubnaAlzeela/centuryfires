@@ -600,7 +600,7 @@ class _AdminSettingsScreenState extends State<AdminSettingsScreen> {
                             description: L.t('delivery_fee_desc'),
                             ctrl: _deliveryFeeCtrl,
                             keyboardType: TextInputType.number,
-                            suffix: 'SAR',
+                            suffix: L.t('currency'),
                           ),
                           const SizedBox(height: 16),
                           _fieldBlock(
@@ -608,7 +608,7 @@ class _AdminSettingsScreenState extends State<AdminSettingsScreen> {
                             description: L.t('min_order_delivery_desc'),
                             ctrl: _minOrderCtrl,
                             keyboardType: TextInputType.number,
-                            suffix: 'SAR',
+                            suffix: L.t('currency'),
                           ),
                           const SizedBox(height: 16),
                           _fieldBlock(
@@ -616,7 +616,7 @@ class _AdminSettingsScreenState extends State<AdminSettingsScreen> {
                             description: L.t('free_delivery_above_desc'),
                             ctrl: _freeDeliveryCtrl,
                             keyboardType: TextInputType.number,
-                            suffix: 'SAR',
+                            suffix: L.t('currency'),
                           ),
                         ],
                       ),

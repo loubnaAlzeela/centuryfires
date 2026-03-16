@@ -87,7 +87,7 @@ class CartItemCard extends StatelessWidget {
                     ),
                   ),
                 Text(
-                  '${item.price.toStringAsFixed(2)} ${L.t('cart_item_card_currency')}',
+                  '${item.price.toStringAsFixed(2)} ${L.t('currency')}',
                   style: TextStyle(
                     color: AppColors.primary(context),
                     fontWeight: FontWeight.bold,

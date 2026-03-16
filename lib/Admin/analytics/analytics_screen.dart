@@ -275,7 +275,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                       titleKey: 'total_revenue',
                       value: isLoading
                           ? '...'
-                          : '${totalRevenue.toStringAsFixed(2)} SAR',
+                          : '${totalRevenue.toStringAsFixed(2)} ${L.t('currency')}',
                     ),
                     AnalyticsKpiCard(
                       titleKey: 'orders',
@@ -285,7 +285,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                       titleKey: 'avg_order_value',
                       value: isLoading
                           ? '...'
-                          : '${avgOrderValue.toStringAsFixed(2)} SAR',
+                          : '${avgOrderValue.toStringAsFixed(2)} ${L.t('currency')}',
                     ),
                     AnalyticsKpiCard(
                       titleKey: 'repeat_customers',

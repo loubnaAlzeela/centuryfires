@@ -164,7 +164,7 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Text(L.t('subtotal'), style: TextStyle(color: AppColors.textGrey(context))),
-                        Text('SAR ${_formatPrice(order['subtotal'] ?? order['total'])}', style: const TextStyle(fontWeight: FontWeight.w600)),
+                        Text('${L.t('currency')} ${_formatPrice(order['subtotal'] ?? order['total'])}', style: const TextStyle(fontWeight: FontWeight.w600)),
                       ],
                     ),
                     const SizedBox(height: 6),
@@ -174,7 +174,7 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           Text(L.t('delivery_fee'), style: TextStyle(color: AppColors.textGrey(context))),
-                          Text('SAR ${_formatPrice(order['driver_fee'])}', style: const TextStyle(fontWeight: FontWeight.w600)),
+                          Text('${L.t('currency')} ${_formatPrice(order['driver_fee'])}', style: const TextStyle(fontWeight: FontWeight.w600)),
                         ],
                       ),
                       const SizedBox(height: 6),
@@ -202,7 +202,7 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
                               ),
                             ),
                             const SizedBox(width: 8),
-                            Text('- SAR ${_formatPrice(order['discount_coupon'])}', style: const TextStyle(color: Colors.green, fontWeight: FontWeight.bold)),
+                            Text('- ${L.t('currency')} ${_formatPrice(order['discount_coupon'])}', style: const TextStyle(color: Colors.green, fontWeight: FontWeight.bold)),
                           ],
                         ),
                         const SizedBox(height: 6),
@@ -229,7 +229,7 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
                               ),
                             ),
                             const SizedBox(width: 8),
-                            Text('- SAR ${_formatPrice(order['discount_big_order'])}', style: const TextStyle(color: Colors.green, fontWeight: FontWeight.bold)),
+                            Text('- ${L.t('currency')} ${_formatPrice(order['discount_big_order'])}', style: const TextStyle(color: Colors.green, fontWeight: FontWeight.bold)),
                           ],
                         ),
                         const SizedBox(height: 6),
@@ -256,7 +256,7 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
                               ),
                             ),
                             const SizedBox(width: 8),
-                            Text('- SAR ${_formatPrice(order['discount'])}', style: const TextStyle(color: Colors.green, fontWeight: FontWeight.bold)),
+                            Text('- ${L.t('currency')} ${_formatPrice(order['discount'])}', style: const TextStyle(color: Colors.green, fontWeight: FontWeight.bold)),
                           ],
                         ),
                         const SizedBox(height: 6),
@@ -266,13 +266,18 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
                     const Divider(),
                     const SizedBox(height: 6),
 
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(L.t('total'), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                        Text('SAR ${_formatPrice(order['total'])}', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: AppColors.primary(context))),
-                      ],
-                    ),
+                    Builder(builder: (_) {
+                      final computedTotal = (num.tryParse(order['subtotal']?.toString() ?? '0') ?? 0) +
+                          (num.tryParse(order['driver_fee']?.toString() ?? '0') ?? 0) -
+                          (num.tryParse(order['discount']?.toString() ?? '0') ?? 0);
+                      return Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(L.t('total'), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                          Text('${L.t('currency')} ${computedTotal.toStringAsFixed(2)}', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: AppColors.primary(context))),
+                        ],
+                      );
+                    }),
                   ],
                 ),
               ),

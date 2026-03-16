@@ -156,7 +156,7 @@ class MealHorizontalListFromData extends StatelessWidget {
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          "${meal.basePrice} SAR", // ✅ من الداتا
+                          "${meal.basePrice} ${L.t('currency')}", // ✅ من الداتا
                           style: TextStyle(
                             color: AppColors.primary(context),
                             fontWeight: FontWeight.bold,

@@ -294,7 +294,7 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
 
                   const Divider(height: 24),
 
-                  _priceRow(context, L.t('total'), order.total, isTotal: true),
+                  _priceRow(context, L.t('total'), order.subtotal + order.deliveryFee - order.discount, isTotal: true),
                 ],
               ),
             ),

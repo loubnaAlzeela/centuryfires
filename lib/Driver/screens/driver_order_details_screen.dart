@@ -471,7 +471,12 @@ class _DriverOrderDetailsScreenState extends State<DriverOrderDetailsScreen> {
             _priceRow(L.t('delivery_fee'), order?['delivery_fee']),
           if ((order?['discount'] as num? ?? 0) > 0)
             _priceRow(L.t('discount'), '-${order?['discount']}'),
-          _priceRow(L.t('total'), order?['total'], bold: true),
+          Builder(builder: (_) {
+            final sub = (order?['subtotal'] as num?)?.toDouble() ?? 0;
+            final fee = (order?['delivery_fee'] as num?)?.toDouble() ?? 0;
+            final disc = (order?['discount'] as num?)?.toDouble() ?? 0;
+            return _priceRow(L.t('total'), sub + fee - disc, bold: true);
+          }),
 
           const SizedBox(height: 12),
 

@@ -231,7 +231,7 @@ class _MealDetailsScreenState extends State<MealDetailsScreen>
 
                         // BASE PRICE
                         Text(
-                          '${widget.meal.basePrice} SAR',
+                          '${widget.meal.basePrice} ${L.t('currency')}',
                           style: TextStyle(
                             color: AppColors.primary(context),
                             fontSize: 18,
@@ -260,7 +260,7 @@ class _MealDetailsScreenState extends State<MealDetailsScreen>
                               secondary: Text(
                                 size.price == 0
                                     ? L.t('included')
-                                    : '+${size.price} SAR',
+                                    : '+${size.price} ${L.t('currency')}',
                                 textDirection: TextDirection.ltr,
                               ),
                               onChanged: (value) {
@@ -316,7 +316,7 @@ class _MealDetailsScreenState extends State<MealDetailsScreen>
                               activeColor: AppColors.primary(context),
                               title: Text(addon.displayName(isArabic)),
                               secondary: Text(
-                                '+${addon.price} SAR',
+                                '+${addon.price} ${L.t('currency')}',
                                 textDirection: TextDirection.ltr,
                               ),
                               onChanged: (checked) {
@@ -687,7 +687,7 @@ class _AnimatedBottomCartButtonState extends State<_AnimatedBottomCartButton>
                               const SizedBox(width: 8),
                               Expanded(
                                 child: Text(
-                                  '${(widget.totalPrice * widget.quantity).toStringAsFixed(2)} SAR',
+                                  '${(widget.totalPrice * widget.quantity).toStringAsFixed(2)} ${L.t('currency')}',
                                   textAlign: TextAlign.end,
                                   overflow: TextOverflow.ellipsis,
                                   style: TextStyle(

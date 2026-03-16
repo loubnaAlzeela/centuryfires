@@ -25,7 +25,7 @@ class MealHorizontalList extends StatelessWidget {
 
               return _MealCard(
                 title: meal.displayName(isArabic),
-                price: '${meal.basePrice.toStringAsFixed(2)} SAR',
+                price: '${meal.basePrice.toStringAsFixed(2)} ${L.t('currency')}',
                 image: meal.image ?? '',
                 isBestSeller: meal.isPopular == true,
               );

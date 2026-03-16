@@ -287,14 +287,6 @@ class _CheckoutPageState extends State<CheckoutPage> {
     if (isPlacingOrder) return;
     setState(() => isPlacingOrder = true);
 
-    // ── التأكد من تحميل الإعدادات قبل إرسال الطلب ──
-    if (isLoadingSettings || deliveryFee == 0) {
-      await _loadSettings();
-    }
-    if (isLoadingTier) {
-      await _loadUserTier();
-    }
-
     try {
       // ── جلب userId ──
       final userRow = await supabase
@@ -314,14 +306,14 @@ class _CheckoutPageState extends State<CheckoutPage> {
           ? 'awaiting_payment'
           : (autoAcceptOrders ? 'confirmed' : 'pending');
 
-      // ── إدراج الطلب ──
-      // ── حساب القيم النهائية قبل الإدراج ──
+      // ── حساب القيم النهائية ──
       final double finalDeliveryFee = effectiveDeliveryFee;
       final double finalDiscount = discount + bigOrderDiscount;
       final double finalTotal = subtotal + finalDeliveryFee - finalDiscount;
 
       debugPrint('ORDER INSERT: subtotal=$subtotal, deliveryFee=$finalDeliveryFee, discount=$finalDiscount, total=$finalTotal');
 
+      // ── إدراج الطلب ──
       final order = await supabase
           .from('orders')
           .insert({
@@ -329,6 +321,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
             'address_id': orderType == 'delivery'
                 ? selectedAddress!['id']
                 : null,
+            'delivery_type': orderType,
             'status': orderStatus,
             'subtotal': subtotal,
             'driver_fee': finalDeliveryFee,
@@ -346,6 +339,20 @@ class _CheckoutPageState extends State<CheckoutPage> {
           })
           .select()
           .single();
+
+      // ── تحقق إذا الداتابيز عدّل القيم (trigger) ──
+      final savedTotal = double.tryParse(order['total']?.toString() ?? '0') ?? 0;
+      if ((savedTotal - finalTotal).abs() > 0.01) {
+        debugPrint('⚠️ DB trigger changed total! Sent=$finalTotal, Saved=$savedTotal');
+        await supabase.from('orders').update({
+          'total': finalTotal,
+          'discount': finalDiscount,
+          'discount_coupon': discount,
+          'discount_big_order': bigOrderDiscount,
+          'driver_fee': finalDeliveryFee,
+        }).eq('id', order['id']);
+        debugPrint('✅ Order values corrected');
+      }
 
       final orderId = order['id'];
       final orderNumber = order['order_number'] ?? orderId;
@@ -594,29 +601,29 @@ class _CheckoutPageState extends State<CheckoutPage> {
               _sectionTitle(L.t('order_summary')),
               _summaryRow(
                 L.t('subtotal'),
-                '${subtotal.toStringAsFixed(2)} SAR',
+                '${subtotal.toStringAsFixed(2)} ${L.t('currency')}',
               ),
               if (orderType == 'delivery')
                 _summaryRow(
                   L.t('delivery_fee'),
                   effectiveDeliveryFee == 0
                       ? L.t('free')
-                      : '${effectiveDeliveryFee.toStringAsFixed(2)} SAR',
+                      : '${effectiveDeliveryFee.toStringAsFixed(2)} ${L.t('currency')}',
                 ),
               if (discount > 0)
                 _summaryRow(
                   L.t('discount'),
-                  '-${discount.toStringAsFixed(2)} SAR',
+                  '-${discount.toStringAsFixed(2)} ${L.t('currency')}',
                 ),
               if (bigOrderDiscount > 0)
                 _summaryRow(
                   L.t('big_order_discount'),
-                  '-${bigOrderDiscount.toStringAsFixed(2)} SAR',
+                  '-${bigOrderDiscount.toStringAsFixed(2)} ${L.t('currency')}',
                 ),
               const Divider(),
               _summaryRow(
                 L.t('total'),
-                '${total.toStringAsFixed(2)} SAR',
+                '${total.toStringAsFixed(2)} ${L.t('currency')}',
                 isTotal: true,
               ),
 
@@ -637,7 +644,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
                       const SizedBox(width: 10),
                       Expanded(
                         child: Text(
-                          '${L.t('min_order_not_met')} (${minOrderAmount.toStringAsFixed(0)} SAR)',
+                          '${L.t('min_order_not_met')} (${minOrderAmount.toStringAsFixed(0)} ${L.t('currency')})',
                           style: TextStyle(
                             color: AppColors.error(context),
                             fontWeight: FontWeight.w600,
@@ -708,7 +715,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
           children: [
             Expanded(
               child: Text(
-                '${L.t('coupon_applied')} (-${discount.toStringAsFixed(2)} SAR)',
+                '${L.t('coupon_applied')} (-${discount.toStringAsFixed(2)} ${L.t('currency')})',
                 style: TextStyle(color: AppColors.text(context)),
               ),
             ),
