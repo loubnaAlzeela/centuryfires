@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'payment_webview_screen.dart';
-import 'card_input_screen.dart';
+// import 'card_input_screen.dart'; // مسينا شاشة البطاقات لأن العملية ستتم في صفحة ويب Edfapay
 import '../../theme/app_colors.dart';
 import '../../services/address_service.dart';
 import '../../services/coupon_service.dart';
@@ -311,7 +311,9 @@ class _CheckoutPageState extends State<CheckoutPage> {
       final double finalDiscount = discount + bigOrderDiscount;
       final double finalTotal = subtotal + finalDeliveryFee - finalDiscount;
 
-      debugPrint('ORDER INSERT: subtotal=$subtotal, deliveryFee=$finalDeliveryFee, discount=$finalDiscount, total=$finalTotal');
+      debugPrint(
+        'ORDER INSERT: subtotal=$subtotal, deliveryFee=$finalDeliveryFee, discount=$finalDiscount, total=$finalTotal',
+      );
 
       // ── إدراج الطلب ──
       final order = await supabase
@@ -328,29 +330,33 @@ class _CheckoutPageState extends State<CheckoutPage> {
             'discount': finalDiscount,
             'discount_coupon': discount,
             'discount_big_order': bigOrderDiscount,
-            'applied_coupon_code': couponApplied ? couponCtrl.text.trim() : null,
-            'total': finalTotal,
-            'payment_method': isOnlinePayment
-                ? 'online'
-                : 'cash',
-            'payment_provider': isOnlinePayment
-                ? paymentMethod
+            'applied_coupon_code': couponApplied
+                ? couponCtrl.text.trim()
                 : null,
+            'total': finalTotal,
+            'payment_method': isOnlinePayment ? 'online' : 'cash',
+            'payment_provider': isOnlinePayment ? paymentMethod : null,
           })
           .select()
           .single();
 
       // ── تحقق إذا الداتابيز عدّل القيم (trigger) ──
-      final savedTotal = double.tryParse(order['total']?.toString() ?? '0') ?? 0;
+      final savedTotal =
+          double.tryParse(order['total']?.toString() ?? '0') ?? 0;
       if ((savedTotal - finalTotal).abs() > 0.01) {
-        debugPrint('⚠️ DB trigger changed total! Sent=$finalTotal, Saved=$savedTotal');
-        await supabase.from('orders').update({
-          'total': finalTotal,
-          'discount': finalDiscount,
-          'discount_coupon': discount,
-          'discount_big_order': bigOrderDiscount,
-          'driver_fee': finalDeliveryFee,
-        }).eq('id', order['id']);
+        debugPrint(
+          '⚠️ DB trigger changed total! Sent=$finalTotal, Saved=$savedTotal',
+        );
+        await supabase
+            .from('orders')
+            .update({
+              'total': finalTotal,
+              'discount': finalDiscount,
+              'discount_coupon': discount,
+              'discount_big_order': bigOrderDiscount,
+              'driver_fee': finalDeliveryFee,
+            })
+            .eq('id', order['id']);
         debugPrint('✅ Order values corrected');
       }
 
@@ -374,46 +380,23 @@ class _CheckoutPageState extends State<CheckoutPage> {
 
       await supabase.from('order_items').insert(itemsPayload);
 
-      // ── دفع إلكتروني (Moyasar) ──
+      // ── دفع إلكتروني (EdfaPay Payment Gateway) ──
       if (isOnlinePayment) {
-        // ✅ إذا كارت، نفتح شاشة إدخال البيانات أولاً
-        Map<String, dynamic>? cardData;
-        if (paymentMethod == 'card') {
-          cardData = await Navigator.push<Map<String, dynamic>>(
-            context,
-            MaterialPageRoute(builder: (_) => const CardInputScreen()),
-          );
-          if (cardData == null) {
-            // المستخدم ضغط back
-            setState(() => isPlacingOrder = false);
-            return;
-          }
-        }
-
-        final String moyasarSourceType = paymentMethod == 'apple'
-            ? 'applepay'
-            : paymentMethod == 'google'
-            ? 'googlepay'
-            : 'creditcard';
 
         final paymentRes = await supabase.functions.invoke(
           'create-payment',
           body: {
-            'amount': (total * 100).toInt(),
+            'order_id': orderNumber.toString(),
+            'amount': total,
             'currency': 'SAR',
             'description': 'Order #$orderNumber',
             'callback_url':
                 'https://poetic-creponne-e07173.netlify.app?order_id=$orderId',
-            'source': {
-              'type': moyasarSourceType,
-              if (cardData != null) ...{
-                'name': cardData['name'],
-                'number': cardData['number'],
-                'month': cardData['month'],
-                'year': cardData['year'],
-                'cvc': cardData['cvc'],
-              },
-            },
+            'payer_first_name': 'Customer',
+            'payer_last_name': 'User',
+            'payer_email':
+                supabase.auth.currentUser?.email ?? 'customer@example.com',
+            'payer_phone': '+966500000000',
           },
           headers: {
             'Authorization':
@@ -422,16 +405,17 @@ class _CheckoutPageState extends State<CheckoutPage> {
         );
 
         final paymentData = paymentRes.data as Map<String, dynamic>?;
-        debugPrint('MOYASAR RESPONSE: $paymentData');
+        debugPrint('EDFAPAY RESPONSE: $paymentData');
 
         if (paymentData == null) {
           throw Exception('Empty response from payment function');
         }
 
-        // استخرج transaction_url
-        final transactionUrl =
-            paymentData['source']?['transaction_url'] as String? ??
-            paymentData['url'] as String?;
+        if (paymentData['error'] != null) {
+          throw Exception(paymentData['error'].toString());
+        }
+
+        final transactionUrl = paymentData['redirect_url'] as String?;
 
         if (transactionUrl == null || transactionUrl.isEmpty) {
           throw Exception('Payment URL not found in response');
@@ -440,6 +424,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
         await CartController.instance.clear();
         if (!mounted) return;
 
+        // فتح صفحة الدفع المستضافة من EdfaPay في WebView
         final result = await Navigator.push<String>(
           context,
           MaterialPageRoute(
@@ -449,7 +434,6 @@ class _CheckoutPageState extends State<CheckoutPage> {
             ),
           ),
         );
-
         if (!mounted) return;
 
         if (result == 'failed') {
@@ -463,7 +447,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
             customMessage: L.t('payment_cancelled'),
           );
         }
-        // إذا result == null أو 'success' → OrderSuccessScreen تم فتحه من PaymentWebViewScreen
+        return;
       } else {
         // ── دفع كاش ──
         await CartController.instance.clear();

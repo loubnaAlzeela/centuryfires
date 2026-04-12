@@ -24,7 +24,7 @@ class AppColors {
   static Color text(BuildContext context) {
     return Theme.of(context).brightness == Brightness.dark
         ? Colors.white
-        : Colors.black; // 👈 هون المهم
+        : Colors.black;
   }
 
   // نص ثانوي / رمادي

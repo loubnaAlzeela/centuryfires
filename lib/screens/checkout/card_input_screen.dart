@@ -299,7 +299,7 @@ class _CardInputScreenState extends State<CardInputScreen> {
                 Icon(Icons.lock, size: 14, color: AppColors.textGrey(context)),
                 const SizedBox(width: 6),
                 Text(
-                  L.t('secured_by_moyasar'),
+                  L.t('secured_by_edfapay'),
                   style: TextStyle(
                     color: AppColors.textGrey(context),
                     fontSize: 12,

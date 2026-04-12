@@ -296,7 +296,7 @@ class L {
     'invalid_year': ['Invalid year', 'سنة غير صحيحة'],
     'invalid_cvc': ['Invalid CVC', 'CVC غير صحيح'],
     'confirm_payment': ['Confirm Payment', 'تأكيد الدفع'],
-    'secured_by_moyasar': ['Secured by Moyasar', 'مدفوعات آمنة عبر ميسر'],
+    'secured_by_edfapay': ['Secured by EdfaPay', 'مدفوعات آمنة عبر EdfaPay'],
     'payment_cancelled': ['Payment was cancelled', 'تم إلغاء الدفع'],
     'cash_desc': ['Pay on delivery', 'الدفع عند الاستلام'],
 
@@ -503,8 +503,8 @@ class L {
     'app_header_brand': ['Century Fries', 'سنشري فرايز'],
     'home': ['Home', 'الرئيسية'],
     // CartItemCard
-    'cart_item_card_currency': ['SAR', 'ريال'],
-    'currency': ['SAR', 'ريال'],
+    'cart_item_card_currency': ['﷼', '﷼'],
+    'currency': ['﷼', '﷼'],
 
     // ===== LoyaltyCard =====
     'loyalty_status': ['Loyalty Status', 'حالة الولاء'],
@@ -517,8 +517,8 @@ class L {
     // ===== MealHorizontalList =====
     'wagyu_burger': ['Wagyu Burger', 'برغر واغيو'],
     'lava_cake': ['Lava Cake', 'لافا كيك'],
-    'wagyu_price': ['85 SAR', '85 ريال'],
-    'lava_price': ['38 SAR', '38 ريال'],
+    'wagyu_price': ['85 ﷼', '85 ﷼'],
+    'lava_price': ['38 ﷼', '38 ﷼'],
 
     // ===== MealHorizontalListFromData =====
     'meal_list_error': ['Something went wrong', 'حدث خطأ ما'],
