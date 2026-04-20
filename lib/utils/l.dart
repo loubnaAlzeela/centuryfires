@@ -1092,6 +1092,53 @@ class L {
     'earnings': ['Earnings', 'الأرباح'],
     'whatsapp': ['WhatsApp', 'واتساب'],
     'visa_mastercard': ['Visa / MasterCard', 'فيزا / ماستركارد'],
+
+    // ================= EMAIL VERIFICATION =================
+    'verify_your_email': ['Verify Your Email', 'تحقق من بريدك الإلكتروني'],
+    'verification_email_sent_desc': [
+      'We\'ve sent a verification link to your email address. Please check your inbox and click the link to activate your account.',
+      'لقد أرسلنا رابط تحقق إلى بريدك الإلكتروني. يرجى التحقق من بريدك والنقر على الرابط لتفعيل حسابك.',
+    ],
+    'verification_step_1': ['Check your inbox', 'افحص بريدك الوارد'],
+    'verification_step_1_desc': [
+      'Open your email app and look for our message',
+      'افتح تطبيق البريد وابحث عن رسالتنا',
+    ],
+    'verification_step_2': ['Click the link', 'اضغط على الرابط'],
+    'verification_step_2_desc': [
+      'Click the verification link in the email',
+      'اضغط على رابط التحقق في الرسالة',
+    ],
+    'verification_step_3': ['Login to your account', 'سجّل الدخول'],
+    'verification_step_3_desc': [
+      'Come back here and login with your credentials',
+      'ارجع هنا وسجّل الدخول ببياناتك',
+    ],
+    'resend_verification': [
+      'Resend Verification Email',
+      'إعادة إرسال رسالة التحقق',
+    ],
+    'verification_resent': [
+      'Verification email has been resent',
+      'تم إعادة إرسال رسالة التحقق',
+    ],
+    'verification_resend_failed': [
+      'Failed to resend verification email. Please try again later.',
+      'فشل إعادة إرسال رسالة التحقق. حاول مرة أخرى لاحقاً.',
+    ],
+    'back_to_login': ['Back to Login', 'العودة لتسجيل الدخول'],
+    'check_spam_folder': [
+      'Can\'t find the email? Check your spam or junk folder.',
+      'لا تجد الرسالة؟ تحقق من مجلد البريد العشوائي (Spam).',
+    ],
+    'email_not_verified_title': [
+      'Email Not Verified',
+      'البريد الإلكتروني غير مُفعّل',
+    ],
+    'email_not_verified_msg': [
+      'Please verify your email address before logging in. Check your inbox for the verification link.',
+      'يرجى تفعيل بريدك الإلكتروني قبل تسجيل الدخول. تحقق من بريدك الوارد لإيجاد رابط التحقق.',
+    ],
   };
 
   /// ================= TRANSLATE =================

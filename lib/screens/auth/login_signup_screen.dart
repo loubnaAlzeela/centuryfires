@@ -5,6 +5,7 @@ import '../../theme/app_colors.dart';
 import '../../utils/l.dart';
 import 'dart:async';
 import '../../main.dart';
+import 'email_verification_screen.dart';
 
 enum AppMessageType { error, success, info }
 
@@ -118,9 +119,10 @@ class _LoginSignupScreenState extends State<LoginSignupScreen>
   _InputType get _inputType {
     final val = _identifierCtrl.text.trim();
     if (val.isEmpty) return _InputType.empty;
-    if (val.startsWith('+') || RegExp(r'^\d').hasMatch(val)) {
-      return _InputType.phone;
-    }
+    // Hide phone login temporarily
+    // if (val.startsWith('+') || RegExp(r'^\d').hasMatch(val)) {
+    //   return _InputType.phone;
+    // }
     return _InputType.email;
   }
 
@@ -300,27 +302,62 @@ class _LoginSignupScreenState extends State<LoginSignupScreen>
 
     try {
       if (isLogin) {
-        await supabase.auth.signInWithPassword(
-          email: email,
-          password: password,
-        );
+        try {
+          await supabase.auth.signInWithPassword(
+            email: email,
+            password: password,
+          );
+        } on AuthException catch (e) {
+          if (_isEmailNotConfirmed(e)) {
+            if (!mounted) return;
+            setState(() => isLoading = false);
+            _showNiceMessage(
+              type: AppMessageType.info,
+              title: L.t('email_not_verified_title'),
+              message: L.t('email_not_verified_msg'),
+              actionText: L.t('resend_verification'),
+              onAction: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => EmailVerificationScreen(email: email),
+                  ),
+                );
+              },
+            );
+            return;
+          }
+          rethrow;
+        }
       } else {
         try {
-          await supabase.auth.signUp(email: email, password: password);
-          try {
-            await supabase.auth.signInWithPassword(
-              email: email,
-              password: password,
-            );
-          } on AuthException catch (e) {
-            if (_isEmailNotConfirmed(e)) {
-              if (!mounted) return;
-              setState(() => isLoading = false);
-              _showErrorMessage(L.t('err_email_not_confirmed'));
-              return;
-            }
-            rethrow;
+          final res = await supabase.auth.signUp(
+            email: email,
+            password: password,
+            emailRedirectTo: 'https://astonishing-liger-117264.netlify.app/email-confirmed.html',
+          );
+
+          // إذا المستخدم موجود مسبقاً (Supabase يرجع user بدون session)
+          if (res.user != null &&
+              res.user!.identities != null &&
+              res.user!.identities!.isEmpty) {
+            if (!mounted) return;
+            setState(() {
+              isLoading = false;
+              isLogin = true;
+            });
+            _showErrorMessage(L.t('err_user_exists'));
+            return;
           }
+
+          // تم إنشاء الحساب بنجاح → انتقل لشاشة التحقق
+          if (!mounted) return;
+          setState(() => isLoading = false);
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => EmailVerificationScreen(email: email),
+            ),
+          );
+          return;
         } on AuthException catch (e) {
           if (_isUserAlreadyExists(e)) {
             if (!mounted) return;
@@ -678,7 +715,9 @@ class _LoginSignupScreenState extends State<LoginSignupScreen>
   // ══════════════════════════════════════════════════
   Widget _smartFields() {
     final showPassword = _isEmail && _secondFieldVisible;
-    final showPhoneField = _isEmail && !isLogin && _phoneFieldVisible;
+    // Hide phone field temporarily
+    // final showPhoneField = _isEmail && !isLogin && _phoneFieldVisible;
+    final showPhoneField = false;
     final showOtpField = _isPhone && _otpSent;
 
     return Column(
@@ -764,7 +803,9 @@ class _LoginSignupScreenState extends State<LoginSignupScreen>
     final icon = _isPhone
         ? Icons.phone_outlined
         : Icons.alternate_email_rounded;
-    final hint = _isPhone ? L.t('phone_with_code') : L.t('email_or_phone');
+    // Hide phone login temporarily
+    // final hint = _isPhone ? L.t('phone_with_code') : L.t('email_or_phone');
+    final hint = L.t('email');
 
     final Color badgeColor;
     final IconData badgeIcon;

@@ -564,6 +564,8 @@ class _CheckoutPageState extends State<CheckoutPage> {
               _sectionTitle(L.t('payment_method')),
               if (enableCashOnDelivery)
                 _paymentTile(L.t('cash'), L.t('cash_desc'), 'cash'),
+              /*
+              // تم إخفاء هذه الوسائل لإعادة تفعيلها لاحقاً بناءً على طلب العميل
               if (enableVisaMaster)
                 _paymentTile(
                   'Visa / MasterCard',
@@ -574,6 +576,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
                 _paymentTile('Apple Pay', 'Secure Apple payment', 'apple'),
               if (enableGooglePay)
                 _paymentTile('Google Pay', 'Secure Google payment', 'google'),
+              */
 
               const SizedBox(height: 24),
 

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../utils/l.dart';
+import '../../theme/app_colors.dart';
 import 'login_signup_screen.dart';
 
 class ResetPasswordScreen extends StatefulWidget {
@@ -88,90 +89,118 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
     final textColor = Theme.of(
       context,
     ).textTheme.bodySmall?.color?.withValues(alpha: 0.7);
+    final primaryColor = AppColors.primary(context);
+
+    // التحقق المباشر لتفعيل الزر
+    final password = _passwordController.text;
+    final confirm = _confirmController.text;
+    final isValid = _isStrongPassword(password) && password == confirm && password.isNotEmpty;
 
     return Scaffold(
       appBar: AppBar(title: Text(L.t('reset_password'))),
-      body: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          children: [
-            const SizedBox(height: 20),
-
-            // 🔐 Password
-            TextField(
-              controller: _passwordController,
-              obscureText: _obscurePassword,
-              decoration: InputDecoration(
-                labelText: L.t('new_password'),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                suffixIcon: IconButton(
-                  icon: Icon(
-                    _obscurePassword ? Icons.visibility : Icons.visibility_off,
-                  ),
-                  onPressed: () {
-                    setState(() {
-                      _obscurePassword = !_obscurePassword;
-                    });
-                  },
-                ),
-              ),
-            ),
-
-            const SizedBox(height: 16),
-
-            // 🔐 Confirm Password
-            TextField(
-              controller: _confirmController,
-              obscureText: _obscureConfirm,
-              decoration: InputDecoration(
-                labelText: L.t('confirm_password'),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                suffixIcon: IconButton(
-                  icon: Icon(
-                    _obscureConfirm ? Icons.visibility : Icons.visibility_off,
-                  ),
-                  onPressed: () {
-                    setState(() {
-                      _obscureConfirm = !_obscureConfirm;
-                    });
-                  },
-                ),
-              ),
-            ),
-
-            const SizedBox(height: 16),
-
-            Text(
-              "${L.t('password_policy_full')}\n"
-              "${L.t('password_min_chars')}\n"
-              "${L.t('password_upper_lower')}\n"
-              "${L.t('password_number')}\n"
-              "${L.t('password_special')}",
-              style: TextStyle(fontSize: 12, color: textColor),
-            ),
-
-            const SizedBox(height: 24),
-
-            SizedBox(
-              width: double.infinity,
-              height: 50,
-              child: ElevatedButton(
-                onPressed: _loading ? null : _updatePassword,
-                style: ElevatedButton.styleFrom(
-                  shape: RoundedRectangleBorder(
+      body: Center(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              // 🔐 Password
+              TextField(
+                controller: _passwordController,
+                obscureText: _obscurePassword,
+                onChanged: (_) => setState(() {}),
+                decoration: InputDecoration(
+                  labelText: L.t('new_password'),
+                  border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(color: primaryColor, width: 2),
+                  ),
+                  suffixIcon: IconButton(
+                    icon: Icon(
+                      _obscurePassword ? Icons.visibility : Icons.visibility_off,
+                    ),
+                    onPressed: () {
+                      setState(() {
+                        _obscurePassword = !_obscurePassword;
+                      });
+                    },
+                  ),
                 ),
-                child: _loading
-                    ? const CircularProgressIndicator(color: Colors.white)
-                    : Text(L.t('confirm')),
               ),
-            ),
-          ],
+
+              const SizedBox(height: 16),
+
+              // 🔐 Confirm Password
+              TextField(
+                controller: _confirmController,
+                obscureText: _obscureConfirm,
+                onChanged: (_) => setState(() {}),
+                decoration: InputDecoration(
+                  labelText: L.t('confirm_password'),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(color: primaryColor, width: 2),
+                  ),
+                  suffixIcon: IconButton(
+                    icon: Icon(
+                      _obscureConfirm ? Icons.visibility : Icons.visibility_off,
+                    ),
+                    onPressed: () {
+                      setState(() {
+                        _obscureConfirm = !_obscureConfirm;
+                      });
+                    },
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 16),
+
+              Text(
+                "${L.t('password_policy_full')}\n"
+                "${L.t('password_min_chars')}\n"
+                "${L.t('password_upper_lower')}\n"
+                "${L.t('password_number')}\n"
+                "${L.t('password_special')}",
+                style: TextStyle(fontSize: 12, color: textColor),
+                textAlign: TextAlign.center,
+              ),
+
+              const SizedBox(height: 32),
+
+              SizedBox(
+                width: double.infinity,
+                height: 54,
+                child: ElevatedButton(
+                  onPressed: (_loading || !isValid) ? null : _updatePassword,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: isValid ? primaryColor : Colors.grey.withOpacity(0.3),
+                    foregroundColor: isValid ? Colors.black : Colors.white54,
+                    elevation: isValid ? 2 : 0,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                  ),
+                  child: _loading
+                      ? const SizedBox(
+                          height: 24,
+                          width: 24,
+                          child: CircularProgressIndicator(color: Colors.black, strokeWidth: 2.5),
+                        )
+                      : Text(
+                          L.t('confirm'),
+                          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                        ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
